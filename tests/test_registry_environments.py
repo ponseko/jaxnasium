@@ -4,9 +4,9 @@ import _consts as TEST_CONSTS  # noqa: F401
 import jax
 import pytest
 
-import jymkit as jym
-from jymkit._environment import ORIGINAL_OBSERVATION_KEY
-from jymkit.algorithms import DQN, PPO, PQN, SAC
+import jaxnasium as jym
+from jaxnasium._environment import ORIGINAL_OBSERVATION_KEY
+from jaxnasium.algorithms import DQN, PPO, PQN, SAC
 
 TEST_ENVS = (  # All included envs + arbitrary subset of external envs
     list(jym.registry._environments.keys()) + list(jym.registry._aliases.keys())[::16]

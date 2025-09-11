@@ -1,4 +1,4 @@
-::: src.jymkit.Environment 
+::: src.jaxnasium.Environment 
     options: 
         members: 
             - step
@@ -12,12 +12,12 @@
 
 ## Timestep
 
-::: src.jymkit.TimeStep
+::: src.jaxnasium.TimeStep
     options:
         members: false
 
 ## Observation container (optional)
 
-::: src.jymkit.AgentObservation
+::: src.jaxnasium.AgentObservation
     options:
         members: false

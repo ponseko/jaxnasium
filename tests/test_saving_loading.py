@@ -5,16 +5,16 @@ import cloudpickle
 import jax
 import jax.numpy as jnp
 
-import jymkit
-import jymkit.algorithms
+import jaxnasium
+import jaxnasium.algorithms
 
 
 def test_saving_loading(tmp_path):
     # Create a simple environment
-    env = jymkit.make("CartPole-v1")
+    env = jaxnasium.make("CartPole-v1")
 
     # Initialize the agent
-    agent = jymkit.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
+    agent = jaxnasium.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
 
     # # Train the agent
     # agent = agent.train(jax.random.PRNGKey(1), env)
@@ -24,7 +24,7 @@ def test_saving_loading(tmp_path):
     agent.save_state(save_path)
 
     # Load the agent
-    load_agent = jymkit.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
+    load_agent = jaxnasium.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
     load_agent = load_agent.init_state(jax.random.PRNGKey(1), env)
     load_agent = load_agent.load_state(save_path)
 
@@ -48,10 +48,10 @@ def test_saving_loading(tmp_path):
 
 def test_cloudpickle_saving(tmp_path):
     # Create a simple environment
-    env = jymkit.make("CartPole-v1")
+    env = jaxnasium.make("CartPole-v1")
 
     # Initialize the agent
-    agent = jymkit.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
+    agent = jaxnasium.algorithms.PPO(**TEST_CONSTS.PPO_MIN_CONFIG)
 
     # # Train the agent
     # agent = agent.train(jax.random.PRNGKey(1), env)
@@ -63,7 +63,7 @@ def test_cloudpickle_saving(tmp_path):
 
     # Load the agent
     with open(save_path, "rb") as f:
-        load_agent: jymkit.algorithms.PPO = cloudpickle.load(f)
+        load_agent: jaxnasium.algorithms.PPO = cloudpickle.load(f)
 
     # Check if weights match
     assert jnp.all(

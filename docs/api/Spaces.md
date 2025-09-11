@@ -1,18 +1,18 @@
-::: src.jymkit._wrappers.Space
+::: src.jaxnasium._wrappers.Space
     options: 
         members: false
 
-::: src.jymkit.Box 
+::: src.jaxnasium.Box 
     options: 
         members: 
             - sample
         
-::: src.jymkit.Discrete 
+::: src.jaxnasium.Discrete 
     options: 
         members: 
             - sample
 
-::: src.jymkit.MultiDiscrete 
+::: src.jaxnasium.MultiDiscrete 
     options: 
         members: 
             - sample

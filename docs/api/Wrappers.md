@@ -1,33 +1,33 @@
-::: src.jymkit.LogWrapper 
+::: src.jaxnasium.LogWrapper 
     options: 
         members: false
 
-::: src.jymkit.VecEnvWrapper 
+::: src.jaxnasium.VecEnvWrapper 
     options: 
         members: false
 
-::: src.jymkit.NormalizeVecObsWrapper 
+::: src.jaxnasium.NormalizeVecObsWrapper 
     options: 
         members: false
 
-::: src.jymkit.NormalizeVecRewardWrapper 
+::: src.jaxnasium.NormalizeVecRewardWrapper 
     options: 
         members: false
 
-::: src.jymkit.FlattenObservationWrapper 
+::: src.jaxnasium.FlattenObservationWrapper 
     options: 
         members: false
 
-::: src.jymkit.GymnaxWrapper 
+::: src.jaxnasium.GymnaxWrapper 
     options: 
         members: false
         
 ## Utility functions
 
-::: src.jymkit.is_wrapped 
+::: src.jaxnasium.is_wrapped 
     options: 
         members: false
         
-::: src.jymkit.remove_wrapper 
+::: src.jaxnasium.remove_wrapper 
     options: 
         members: false

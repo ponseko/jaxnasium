@@ -1,5 +1,5 @@
 [project]
-name = "jymkit"
+name = "jaxnasium"
 version = "0.0.18"
 description = "A lightweight utility library for reinforcement learning projects in JAX and Equinox."
 readme = "README.md"
@@ -26,7 +26,7 @@ requires = ["uv_build>=0.8.14,<0.9.0"]
 build-backend = "uv_build"
 
 [project.scripts]
-jymkit = "jymkit.cli.init:main"
+jaxnasium = "jaxnasium.cli.init:main"
 
 [dependency-groups]
 dev = [
@@ -54,4 +54,4 @@ combine-as-imports = true
 venvPath = "."
 venv = ".venv"
 include = ["src", "tests"]
-exclude = ["src/jymkit/cli/*"]
+exclude = ["src/jaxnasium/cli/*"]

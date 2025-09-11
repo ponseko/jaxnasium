@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 from jaxtyping import Array, PRNGKeyArray
 
-import jymkit as jym
-from jymkit import Discrete, Environment, MultiDiscrete, Space, TimeStep
-from jymkit.algorithms import DQN, PPO, PQN
+import jaxnasium as jym
+from jaxnasium import Discrete, Environment, MultiDiscrete, Space, TimeStep
+from jaxnasium.algorithms import DQN, PPO, PQN
 
 
 class SimpleEnvState(eqx.Module):
