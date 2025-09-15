@@ -1,6 +1,6 @@
 import jax
 
-from jymkit.algorithms import DQN, PPO, PQN, SAC  # noqa: F401
+from jaxnasium.algorithms import DQN, PPO, PQN, SAC  # noqa: F401
 
 jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
 jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)

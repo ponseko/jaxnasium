@@ -1,4 +1,4 @@
-::: src.jymkit.Environment 
+::: src.jaxnasium.Environment 
     options: 
         members: 
             - step
@@ -9,15 +9,18 @@
             - sample_observation
             - action_space
             - sample_action
+            - auto_reset
+            - multi_agent
+            - agent_structure
 
 ## Timestep
 
-::: src.jymkit.TimeStep
+::: src.jaxnasium.TimeStep
     options:
         members: false
 
 ## Observation container (optional)
 
-::: src.jymkit.AgentObservation
+::: src.jaxnasium.AgentObservation
     options:
         members: false

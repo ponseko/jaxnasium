@@ -3,8 +3,8 @@ from dataclasses import replace
 import jax
 import jax.numpy as jnp
 
-from jymkit.algorithms.utils._multi_agent import transform_multi_agent
-from jymkit.algorithms.utils._transition import Transition
+from jaxnasium.algorithms.utils._multi_agent import transform_multi_agent
+from jaxnasium.algorithms.utils._transition import Transition
 
 
 def test_transform_multi_agent_default_w_dict():

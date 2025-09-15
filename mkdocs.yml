@@ -1,6 +1,6 @@
-site_name: JymKit
-site_url: https://ponseko.github.io/jymkit/
-repo_url: https://github.com/ponseko/jymkit
+site_name: Jaxnasium
+site_url: https://ponseko.github.io/jaxnasium/
+repo_url: https://github.com/ponseko/jaxnasium
 theme:
   name: material
   features:
@@ -58,8 +58,25 @@ plugins:
 
 nav:
   - 'index.md'
-  - Environments:
+
+  - Core:
     - 'api/Environment.md'
-    # - 'api/Multi-Agent.md'
+    - 'algorithms/Algorithms.md'
+    - 'algorithms/Multi-Agent.md'
+
+  - Environment API:
+    - 'api/Environment.md'
+    - 'api/Available-Environments.md'
+    - 'algorithms/Multi-Agent.md'
     - 'api/Spaces.md'
     - 'api/Wrappers.md'
+    # - 'api/Misc.md'
+
+  - Miscellaneous:
+    - 'tree/Tree.md'
+    - 'algorithms/misc/Logging.md'
+    - 'algorithms/misc/Normalization.md'
+    - 'algorithms/misc/Transitions.md'
+    - 'algorithms/misc/Replay-Buffer.md'
+    - 'algorithms/misc/Distributions.md'
+    - 'algorithms/misc/Initialization.md'

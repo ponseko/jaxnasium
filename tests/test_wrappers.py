@@ -4,8 +4,8 @@ import _consts as TEST_CONSTS
 import jax
 import pytest
 
-import jymkit as jym
-from jymkit.algorithms import PPO
+import jaxnasium as jym
+from jaxnasium.algorithms import PPO
 
 
 def test_ppo_cartpole_with_wrappers():

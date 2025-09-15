@@ -4,8 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-import jymkit as jym
-from jymkit.algorithms import SAC
+import jaxnasium as jym
+from jaxnasium.algorithms import SAC
 
 
 @pytest.mark.parametrize("alg", TEST_CONSTS.DISCRETE_ALGS)

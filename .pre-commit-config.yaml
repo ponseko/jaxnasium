@@ -16,6 +16,36 @@ repos:
             jaxtyping,
           ]
 
+  - repo: local
+    hooks:
+      - id: update-environments-list
+        name: Update Available Environments List
+        entry: |
+          python -c "
+          import sys
+          from pathlib import Path
+          try:
+              import jaxnasium
+              registry = jaxnasium.registry
+              env_list = list(registry._environments.keys()) + list(registry._aliases.values())
+              docs_path = Path('docs/api/_Available-Environments-List.md')
+              content = '\n'.join(f'- `{env}`' for env in env_list) + '\n'
+              current_content = docs_path.read_text() if docs_path.exists() else ''
+              if current_content != content:
+                  docs_path.write_text(content)
+                  print(f'Updated {docs_path} with {len(env_list)} environments. Please stage and commit the changes.')
+                  sys.exit(1)
+              else:
+                  print(f'No changes needed for {docs_path}')
+                  sys.exit(0)
+          except Exception as e:
+              print(f'Error: {e}')
+              sys.exit(1)
+          "
+        language: system
+        files: ^src/jaxnasium/_registry\.py$
+        pass_filenames: false
+
 ci:
     autofix_commit_msg: |
         [pre-commit.ci] auto fixes from pre-commit.com hooks

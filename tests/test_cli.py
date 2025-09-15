@@ -10,7 +10,7 @@ import pytest
     bool(os.getenv("JYMKIT_SKIP_CLI_TEST", False)), reason="Skipping CLI test"
 )
 def test_init_cli_with_pipx(tmp_path, monkeypatch):
-    """Test that jymkit works when invoked through pipx."""
+    """Test that jaxnasium works when invoked through pipx."""
     test_dir = tmp_path / "test_project"
 
     # try with uvx first
@@ -27,7 +27,7 @@ def test_init_cli_with_pipx(tmp_path, monkeypatch):
         # Run through pipx
         # Run through pipx - store the result for checking
         result = subprocess.run(
-            ["pipx", "run", "--no-cache", "--spec", ".", "jymkit", test_dir, "-y"],
+            ["pipx", "run", "--no-cache", "--spec", ".", "jaxnasium", test_dir, "-y"],
             capture_output=True,
             text=True,
         )
