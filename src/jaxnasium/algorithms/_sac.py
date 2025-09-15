@@ -47,6 +47,11 @@ class SACState(eqx.Module):
 
 
 class SAC(RLAlgorithm):
+    """Soft Actor-Critic (SAC) algorithm implementation.
+
+    This implementation uses soft target updates, a replay buffer, and a target entropy scale with optional annealing.
+    """
+
     state: SACState = eqx.field(default=None)
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
 

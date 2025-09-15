@@ -32,6 +32,8 @@ class PQNState(eqx.Module):
 
 
 class PQN(RLAlgorithm):
+    """Parallel Q-Network (PQN) algorithm implementation."""
+
     state: PQNState = eqx.field(default=None)
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
 

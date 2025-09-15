@@ -65,12 +65,13 @@ def transform_multi_agent(
     automatically be upgraded to multi-agent settings.
 
     **Arguments**:
-        `func`: The function to be transformed. If None, returns a decorator.
-        `shared_argnames`: An optional list of argument names that are shared across agents. If None, the first (non-PRNGKey) argument is
+
+    - `func`: The function to be transformed. If None, returns a decorator.
+    - `shared_argnames`: An optional list of argument names that are shared across agents. If None, the first (non-PRNGKey) argument is
         assumed to be a per-agent argument. All arguments with the same first-level PyTree structure are also considered per-agent arguments.
         The rest are considered shared arguments. PRNG keys that are provided as arguments are automatically split over agents.
-        `auto_split_keys`: When enabled, provided single PRNGKeys are automatically split over the same structure as the first argument.
-        `auto_split_transitions`: When enabled, `Transition` objects are automatically transposed before being passed to the function.
+    - `auto_split_keys`: When enabled, provided single PRNGKeys are automatically split over the same structure as the first argument.
+    - `auto_split_transitions`: When enabled, `Transition` objects are automatically transposed before being passed to the function.
             After the function call, the `Transition` object is reconstructed into the original structure.
 
     **Example**:

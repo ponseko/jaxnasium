@@ -33,7 +33,35 @@ DEFAULT_PER_AGENT_FUNCTIONS = [
 
 
 class RLAlgorithm(eqx.Module):
+    """Base class for reinforcement learning algorithms in JAXnasium.
+
+    This abstract base class provides a common interface for implementing RL algorithms
+    in JAX. It supports both single-agent and multi-agent scenarios, with automatic
+    multi-agent transformation capabilities.
+
+    The philosophy of Jaxnasium algorithms is to maintain close to single-file implementations. All training
+    logic is therefor implemented in the algorithms themselves, and are designed for single-agent settings.
+    This base class provides only a default evaluation loop, environment compatibility checks, and
+    automatic multi-agent transformation capabilities.
+
+    Key Features:
+    - Multi-agent support: Automatic transformation of single-agent algorithms to multi-agent
+    - Environment compatibility: Built-in checks and warnings for environment compatibility
+    - Evaluation: Standardized evaluation interface for comparing algorithm performance
+
+    Attributes:
+        agent_state: Abstract variable representing the algorithm's internal state (PyTree of modules)
+        multi_agent: Whether this algorithm instance operates in multi-agent mode
+        auto_upgrade_multi_agent: Whether to automatically upgrade single-agent methods to multi-agent
+        actor_kwargs: Additional keyword arguments for actor networks
+        critic_kwargs: Additional keyword arguments for critic networks
+        log_function: Logging function to use ("simple", "tqdm", or custom callable)
+        log_interval: Interval for logging (as fraction of total steps or absolute number)
+
+    """
+
     state: eqx.AbstractVar[PyTree[eqx.Module]]
+    "Trainable state of the algorithm, usually containing the networks, optimizer state and optional normalization running statistics."
 
     multi_agent: bool = eqx.field(static=True, default=False)
     auto_upgrade_multi_agent: bool = eqx.field(static=True, default=True)
@@ -157,18 +185,32 @@ class RLAlgorithm(eqx.Module):
         object.__setattr__(new_instance, "__class__", NewCls)  # safe: NewCls ⊂ cls
         return new_instance
 
-    def __check_env__(
-        self,
-        env: Environment,
-        vectorized: bool = False,
-        # flatten_action_space: bool = False,
-    ) -> Environment:
+    def __check_env__(self, env: Environment, vectorized: bool = False) -> Environment:
         """
         Some validation checks on the current environment and its compatibility with the current
         algorithm setup.
         Additionally wraps the environment in a `VecEnvWrapper` if it is not already wrapped
         and `vectorized` is True.
         """
+        if env.multi_agent:
+
+            def first_level_structure(tree):
+                return jax.tree.structure(tree, is_leaf=lambda x: x is not tree)
+
+            first_level_action_space = first_level_structure(env.action_space)
+            first_level_observation_space = first_level_structure(env.observation_space)
+            assert first_level_action_space == first_level_observation_space, (
+                "Action space and observation space must have the same first-level structure for multi-agent environments."
+            )
+            dummy_action = env.sample_action(jax.random.PRNGKey(0))
+            obs, state = env.reset(jax.random.PRNGKey(0))
+            timestep, _ = env.step(jax.random.PRNGKey(0), state, dummy_action)
+            first_level_obs = first_level_structure(timestep.observation)
+            first_level_action = first_level_structure(dummy_action)
+            first_level_reward = first_level_structure(timestep.reward)
+            assert first_level_obs == first_level_reward == first_level_action, (
+                "Observation, reward, terminated, and truncated must have the same first-level structure for multi-agent environments."
+            )
         if is_wrapped(env, "JumanjiWrapper"):
             logger.warning(
                 "Some Jumanji environments rely on specific action masking logic "

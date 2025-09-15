@@ -7,8 +7,6 @@ Jaxnasium lets you
 2. 🚀 Bootstrap new JAX RL projects with a single CLI command and get started instantly with a complete codebase.
 3. 🤖 Jaxnasium comes equiped with standard **general** RL implementations based on a near-single-file philosophy. You can either import these as off-the-shelf algorithms or copy over the code and tweak them for your problem. These algorithms follow the ideas of [PureJaxRL](https://github.com/luchris429/purejaxrl) for extremely fast end-to-end RL training in JAX.
 
-📖 More details over at the [Documentation](https://ponseko.github.io/jaxnasium/)
-
 ## 🚀 Getting started
 
 Jaxnasium lets you bootstrap your new reinforcement learning projects directly from the command line. As such, for new projects, the easiest way to get started is via [uv](https://docs.astral.sh/uv/getting-started/installation/):
@@ -36,7 +34,7 @@ For existing projects, you can simply install Jaxnasium via `pip` and import the
 > import jaxnasium as jym
 > from jaxnasium.algorithms import PPO
 > 
-> env = jym.make("CartPole")
+> env = jym.make("CartPole-v1")
 > env = jaxnasium.LogWrapper(env)
 > rng = jax.random.PRNGKey(0)
 > agent = PPO(total_timesteps=5e5, learning_rate=2.5e-3)
@@ -69,8 +67,7 @@ agent = agent.train(jax.random.PRNGKey(0), env)
 !!!info 
     For convenience, Jaxnasium does include the 5 [classic-control environments](https://gymnasium.farama.org/environments/classic_control/).
 
-!!!info 
-    Currently, importing from external libraries is possible for [Gymnax](https://github.com/RobertTLange/gymnax) and [Brax](https://github.com/google/brax). More are coming up!
+See the [Environments](./api/Available-Environments.md) page for a complete list of available environments.
 
 ### Environment API
 
@@ -89,8 +86,6 @@ obs, env_state = env.reset(key) # <-- Mirroring Gymnax
 
 Algorithms in `jaxnasium.algorithms` are built following a near-single-file implementation philosophy in mind. In contrast to implementations in [CleanRL](https://github.com/vwxyzjn/cleanrl) or [PureJaxRL](https://github.com/luchris429/purejaxrl), Jaxnasium algorithms are built in Equinox and follow a class-based design with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3) API. 
 
-Each algorithm supports both discrete- and continuous action/observation space -- adjusting based on the provided environment `observation_space` and `action_space`. Additionally, the implementations support multi-agent environments out of the box.
-
 ```python
 from jaxnasium.algorithms import PPO
 import jax
@@ -100,5 +95,7 @@ agent = PPO(**some_good_hyperparameters)
 agent = agent.train(jax.random.PRNGKey(0), env)
 ```
 
-!!!info 
-    Currently, only a `PPO` implementation is implemented. More will be included in the near future. However, the current goal is not to include as many algorithms as possible.
+See the [Algorithms](./algorithms/Algorithms.md) for more details on the included algorithms..
+
+--8<-- "algorithms/_Algorithm-Table.md"
+

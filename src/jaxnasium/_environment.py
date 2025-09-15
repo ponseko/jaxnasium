@@ -202,8 +202,9 @@ class Environment(eqx.Module, Generic[TEnvState]):
     @property
     def agent_structure(self) -> PyTreeDef:
         """
-        Returns the structure of the agent space.
-        This is useful for environments with multiple agents.
+        Returns the structure of the agent space. In single-agent environments this is
+        simply a PyTreeDef(*).
+        However, for multi-agent environments this is a PyTreeDef((*, x num_agents)).
         """
         if not self.multi_agent:
             return jax.tree.structure(0)

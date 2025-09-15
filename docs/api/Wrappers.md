@@ -1,33 +1,62 @@
 ::: src.jaxnasium.LogWrapper 
     options: 
-        members: false
+        members:
+            -
 
 ::: src.jaxnasium.VecEnvWrapper 
     options: 
-        members: false
+        members:
+            -
 
 ::: src.jaxnasium.NormalizeVecObsWrapper 
     options: 
-        members: false
+        members:
+            -
 
 ::: src.jaxnasium.NormalizeVecRewardWrapper 
     options: 
-        members: false
+        members:
+            -
 
 ::: src.jaxnasium.FlattenObservationWrapper 
     options: 
-        members: false
+        members:
+            -
 
-::: src.jaxnasium.GymnaxWrapper 
+::: src.jaxnasium.TransformRewardWrapper 
     options: 
-        members: false
+        members:
+            -
+
+::: src.jaxnasium.ScaleRewardWrapper 
+    options: 
+        members:
+            -
+
+::: src.jaxnasium.DiscreteActionWrapper 
+    options: 
+        members:
+            -
+<!-- 
+::: src.jaxnasium._wrappers.MetaParamsWrapper 
+    options: 
+        members:
+            - -->
+
+::: src.jaxnasium.FlattenActionSpaceWrapper 
+    options: 
+        members:
+            -
+
         
 ## Utility functions
 
 ::: src.jaxnasium.is_wrapped 
     options: 
-        members: false
+        members:
+            -
         
 ::: src.jaxnasium.remove_wrapper 
     options: 
-        members: false
+        members:
+            -

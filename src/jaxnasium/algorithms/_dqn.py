@@ -34,11 +34,20 @@ class DQNState(eqx.Module):
 
 
 class DQN(RLAlgorithm):
+    """Deep Q-Network (DQN) algorithm implementation.
+
+    This implementation uses target networks with soft updates (polyak averaging),
+    a replay buffer and epsilon-greedy exploration with optional annealing.
+    """
+
     state: DQNState = eqx.field(default=None)
+    "State of the DQN algorithm, containing the networks, optimizer state and optional normalization running statistics."
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
+    "Optimizer used for training the networks."
 
     learning_rate: float = 2.5e-3
     anneal_learning_rate: bool | float = eqx.field(static=True, default=False)
+    "Whether to anneal the learning rate over time. Set to a float to specify the end value. True means 0.0."
     gamma: float = 0.99
     max_grad_norm: float = 1.0
     update_every: int = eqx.field(static=True, default=int(2e2))
@@ -46,13 +55,18 @@ class DQN(RLAlgorithm):
     batch_size: int = 64
     epsilon: float = 0.2
     anneal_epsilon: bool | float = eqx.field(static=True, default=True)
+    "Whether to anneal the exploration rate over time. Set to a float to specify the end value. True means 0.0."
     tau: float = 0.95
+    "Soft update coefficient for target network."
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
     num_envs: int = eqx.field(static=True, default=4)
+    "Number of parallel environments."
 
     normalize_observations: bool = eqx.field(static=True, default=False)
+    "Whether to normalize observations via running statistics."
     normalize_rewards: bool = eqx.field(static=True, default=False)
+    "Whether to normalize rewards via running statistics."
 
     @property
     def _learning_rate_schedule(self):

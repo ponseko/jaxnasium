@@ -27,17 +27,16 @@ class TimeStep(NamedTuple):
     This class follows the [Gymnasium](https://gymnasium.farama.org/) standard API,
     with the signature: `(obs, reward, terminated, truncated, info)` tuple.
 
-    Attributes:
-        observation: The environment state representation provided to the agent.
-                     Can be an Array or a PyTree of arrays.
-                     When using action masking, the observation should be of type `AgentObservation`.
-        reward: The reward signal from the previous action, indicating performance.
-                Can be a scalar Array or a PyTree of reward Arrays (in the case of multi agent-environments).
-        terminated: Boolean flag indicating whether the episode has ended due to
-                   reaching a terminal state (e.g., goal reached, game over).
-        truncated: Boolean flag indicating whether the episode ended due to
-                  external factors (e.g., reaching max steps, timeout).
-        info: Dictionary containing any additional information about the environment step.
+    **Arguments:**
+
+    - `observation`: The environment state representation provided to the agent.
+      Can be an Array or a PyTree of arrays.
+      When using action masking, the observation should be of type `AgentObservation`.
+    - `reward`: The reward signal from the previous action, indicating performance.
+      Can be a scalar Array or a PyTree of reward Arrays (in the case of multi agent-environments).
+    - `terminated`: Boolean flag indicating whether the episode has ended due to reaching a terminal state (e.g., goal reached, game over).
+    - `truncated`: Boolean flag indicating whether the episode ended due to external factors (e.g., reaching max steps, timeout).
+    - `info`: Dictionary containing any additional information about the environment step.
     """
 
     observation: (

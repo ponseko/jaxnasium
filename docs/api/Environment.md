@@ -9,6 +9,9 @@
             - sample_observation
             - action_space
             - sample_action
+            - auto_reset
+            - multi_agent
+            - agent_structure
 
 ## Timestep
 

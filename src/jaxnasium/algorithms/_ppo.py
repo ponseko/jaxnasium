@@ -28,6 +28,8 @@ class PPOState(eqx.Module):
 
 
 class PPO(RLAlgorithm):
+    """Proximal Policy Optimization (PPO) algorithm implementation."""
+
     state: PPOState = eqx.field(default=None)
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
 

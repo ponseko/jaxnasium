@@ -13,7 +13,7 @@ aren't found in used higher-level libraries (equinox / jax).
 
 
 def _tree_size(tree):
-    r"""
+    r"""Get the total number of elements (size of each leaf) in a pytree.
     Ported from: https://github.com/google-deepmind/optax/pull/1321/files/cadb2bca89e2af6af0e70cf0007080d5f68794a4
     """
     return sum([jnp.size(leaf) for leaf in jax.tree.leaves(tree)])
@@ -51,10 +51,11 @@ def tree_mean(tree):
 def tree_map_one_level(fn: Callable, tree, *rest):
     """Simple `jax.tree.map` operation over the first level of a pytree.
 
-    **Arguments**:
-        `fn`: A function to map over the pytree.
-        `tree`: A pytree.
-        `*rest`: Additional pytrees to map over.
+    **Arguments:**
+
+    - `fn`: A function to map over the pytree.
+    - `tree`: A pytree.
+    - `*rest`: Additional pytrees to map over.
     """
     return jax.tree.map(fn, tree, *rest, is_leaf=_is_child_of(tree))
 
@@ -65,9 +66,10 @@ def tree_map_distribution(fn: Callable, tree, *rest):
     is applied to the `distribution` attribute of the `DistraxContainer`.
 
     **Arguments**:
-        `fn`: A function to map over the pytree.
-        `tree`: A pytree.
-        `*rest`: Additional pytrees to map over.
+
+    - `fn`: A function to map over the pytree.
+    - `tree`: A pytree.
+    - `*rest`: Additional pytrees to map over.
     """
     try:
         import distrax
@@ -91,13 +93,13 @@ def tree_map_distribution(fn: Callable, tree, *rest):
 def tree_concatenate(trees: PyTree) -> Array:
     """Concatenate the leaves of a pytree into a single 1D array.
 
-    **Arguments**:
-        `trees`: A pytree whose leaves are array-like and all 1d or 0d.
+        **Arguments**:
 
-    **Returns**:
-        A 1D array containing the concatenated leaves of the pytree.
+        - `trees`: A pytree whose leaves are array-like and all 1d or 0d.
 
-    **Example**:
+        **Returns**: A 1D array containing the concatenated leaves of the pytree.
+
+        **Example**:
     ```python
         >>> tree = {'a': jnp.array([1, 2]), 'b': jnp.array(3)}
         >>> tree_concatenate(tree)
@@ -115,8 +117,9 @@ def tree_get_first(tree: PyTree, key: str) -> Any:
     of multiple matches instead of raising an error.
 
     **Arguments**:
-        `tree`: A pytree.
-        `key`: A string key.
+
+    - `tree`: A pytree.
+    - `key`: A string key.
 
     **Returns**:
         The first value from the pytree with the given key.
@@ -144,10 +147,11 @@ def tree_stack(pytrees: PyTree, *, axis=0) -> PyTree:
     jnp.stack. This does not traverse deeper than one level when determining what to stack.
 
     **Arguments**:
-        `pytrees`: A pytree whose root has N immediate children. Each child must have
-            the same pytree structure. Corresponding leaves must be array-like and
-            have identical shapes and dtypes (compatible with jnp.stack).
-        `axis`: Axis along which to insert the new dimension of size N in each stacked leaf (default=0).
+
+    - `pytrees`: A pytree whose root has N immediate children. Each child must have
+        the same pytree structure. Corresponding leaves must be array-like and
+        have identical shapes and dtypes (compatible with jnp.stack).
+    - `axis`: Axis along which to insert the new dimension of size N in each stacked leaf (default=0).
 
     **Returns**:
         A pytree with the same structure as a single direct-child element of `pytrees`, where each
@@ -178,10 +182,11 @@ def tree_unstack(tree, *, axis=0, structure: Optional[PyTreeDef] = None):  # typ
     returned as a single pytree.
 
     **Arguments**:
-        `tree`: A pytree whose leaves are array-like and all share the same size N along `axis`.
-        `axis`: The axis that carries the size-N dimension in each leaf (default=0).
-        `structure`: Optional `PyTreeDef`. If provided, the list of N pytrees is immediately placed
-        back into that container and returned as a single pytree.
+
+    - `tree`: A pytree whose leaves are array-like and all share the same size N along `axis`.
+    - `axis`: The axis that carries the size-N dimension in each leaf (default=0).
+    - `structure`: Optional `PyTreeDef`. If provided, the list of N pytrees is immediately placed
+    back into that container and returned as a single pytree.
 
     **Returns**:
         If `structure` is `None`: a list of N pytrees.
