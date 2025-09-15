@@ -144,6 +144,3 @@ unstacked = unstack(result, structure=original_structure)
 # Documentation
 
 ::: src.jaxnasium.algorithms.utils.transform_multi_agent
-    options: 
-        members: 
-            -
