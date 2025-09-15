@@ -1,6 +1,7 @@
 ::: src.jaxnasium._wrappers.Space
     options: 
-        members: false
+        members: 
+            - 
 
 ::: src.jaxnasium.Box 
     options: 

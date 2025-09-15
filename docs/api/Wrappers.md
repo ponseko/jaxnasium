@@ -52,11 +52,5 @@
 ## Utility functions
 
 ::: src.jaxnasium.is_wrapped 
-    options: 
-        members:
-            -
         
 ::: src.jaxnasium.remove_wrapper 
-    options: 
-        members:
-            -
