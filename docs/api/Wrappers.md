@@ -13,15 +13,9 @@
 ::: src.jaxnasium.ScaleRewardWrapper 
 
 ::: src.jaxnasium.DiscreteActionWrapper 
-<!-- 
-::: src.jaxnasium._wrappers.MetaParamsWrapper 
-    options: 
-        members:
-            - -->
 
 ::: src.jaxnasium.FlattenActionSpaceWrapper
 
-        
 ## Utility functions
 
 ::: src.jaxnasium.is_wrapped 
