@@ -5,6 +5,3 @@
             - log_prob
 
 ::: src.jaxnasium.algorithms.utils.TanhNormalFactory
-    options:
-        members: 
-            -

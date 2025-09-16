@@ -106,14 +106,18 @@ class Discrete(Space):
     dtype: type
     shape: tuple[int, ...] = ()
 
-    def __init__(self, n: int, dtype: type = jnp.int_):
+    def __init__(self, n: int, dtype: type = jnp.int32):
         self.n = n
         self.dtype = dtype
 
     def sample(self, rng: PRNGKeyArray) -> Int[Array, ""]:
         """Sample random action uniformly from set of discrete choices."""
         return jax.random.randint(
-            rng, shape=self.shape, minval=0, maxval=self.n, dtype=self.dtype
+            rng,
+            shape=self.shape,
+            minval=0,
+            maxval=jnp.array(self.n, dtype=self.dtype),
+            dtype=self.dtype,
         )
 
 
@@ -133,7 +137,7 @@ class MultiDiscrete(Space):
     shape: tuple[int, ...]
 
     def __init__(
-        self, nvec: Int[Array | np.ndarray, " num_actions"], dtype: type = jnp.int_
+        self, nvec: Int[Array | np.ndarray, " num_actions"], dtype: type = jnp.int32
     ):
         self.nvec = nvec
         self.dtype = dtype
@@ -145,6 +149,6 @@ class MultiDiscrete(Space):
             rng,
             shape=self.shape,
             minval=0,
-            maxval=np.array(self.nvec),
+            maxval=jnp.array(self.nvec, dtype=self.dtype),
             dtype=self.dtype,
         )
