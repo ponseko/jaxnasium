@@ -18,7 +18,7 @@ from ._architectures import CNN, Identity
 logger = logging.getLogger(__name__)
 
 
-class AgentObservationNet(eqx.Module):
+class AutoAgentObservationNet(eqx.Module):
     """Input network for **single and multi** observation space environments.
 
     Builds a separate input network for each observation space. Automatically
@@ -110,7 +110,7 @@ class AgentObservationNet(eqx.Module):
         raise ValueError(f"Unsupported 2d architecture: {architecture_2d}")
 
 
-class AgentOutputNet(eqx.Module):
+class AutoAgentOutputNet(eqx.Module):
     """Output network for **single and multi** action space environments.
 
     Will build an individual output head for each action space and inner individual
