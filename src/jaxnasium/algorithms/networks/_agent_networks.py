@@ -10,15 +10,32 @@ import jaxnasium as jym
 from jaxnasium.algorithms.utils import DistraxContainer, rl_initialization
 
 from ._architectures import MLP
-from ._input_output import AgentObservationNet, AgentOutputNet
+from ._input_output import AutoAgentObservationNet, AutoAgentOutputNet
 
 logger = logging.getLogger(__name__)
 
 
+"""
+The base Reinforcement Learning Network classes (actor, V-network, Q-network).
+Each of these consist of three components:
+    - An observation processor (AutoAgentObservationNet)
+        This accepts a PyTree of observation spaces and builds a network per observation space.
+        In case of a single 1d observation space, this will simply be the Identity network.
+        In case of a 2d observation space, this will be a CNN.
+        The output of each observation processor is concatenated into a single 1d vector.
+    - A MLP =
+        This is a simple MLP network that takes the output of the observation processor and passes it through a MLP.
+    - An output processor (AutoAgentOutputNet)
+        This accepts a PyTree of output spaces and builds a network per output space.
+        Automtically builds a discrete or continuous output network based on the output space.
+        Returns the output of each output network in the same PyTree structure as the action space.
+"""
+
+
 class ActorNetwork(eqx.Module):
-    obs_processor: AgentObservationNet
+    obs_processor: AutoAgentObservationNet
     mlp: MLP
-    output_layers: AgentOutputNet
+    output_layers: AutoAgentOutputNet
 
     def __init__(
         self,
@@ -29,9 +46,14 @@ class ActorNetwork(eqx.Module):
     ):
         key_in, key_mlp, key_out = jax.random.split(key, 3)
 
-        self.obs_processor = AgentObservationNet(key_in, obs_space, **network_kwargs)
+        # Automatically builds a network per observation space.
+        # In case of a single 1d observation space, this will simply be the Identity network.
+        # 2d observation spaces will be processed with a CNN.
+        self.obs_processor = AutoAgentObservationNet(
+            key_in, obs_space, **network_kwargs
+        )
         self.mlp = MLP(key_mlp, self.obs_processor.out_features, **network_kwargs)
-        self.output_layers = AgentOutputNet(
+        self.output_layers = AutoAgentOutputNet(
             key_out, self.mlp.out_features, output_space, **network_kwargs
         )
 
@@ -57,7 +79,7 @@ class ActorNetwork(eqx.Module):
 
 
 class ValueNetwork(eqx.Module):
-    obs_processor: AgentObservationNet
+    obs_processor: AutoAgentObservationNet
     mlp: MLP
     output_layers: eqx.nn.Linear
 
@@ -69,7 +91,12 @@ class ValueNetwork(eqx.Module):
     ):
         key_in, key_mlp, key_out = jax.random.split(key, 3)
 
-        self.obs_processor = AgentObservationNet(key_in, obs_space, **network_kwargs)
+        # Automatically builds a network per observation space.
+        # In case of a single 1d observation space, this will simply be the Identity network.
+        # 2d observation spaces will be processed with a CNN.
+        self.obs_processor = AutoAgentObservationNet(
+            key_in, obs_space, **network_kwargs
+        )
         self.mlp = MLP(key_mlp, self.obs_processor.out_features, **network_kwargs)
         self.output_layers = eqx.nn.Linear(self.mlp.out_features, 1, key=key_out)
 
@@ -89,9 +116,9 @@ class ValueNetwork(eqx.Module):
 
 
 class QValueNetwork(eqx.Module):
-    obs_processor: AgentObservationNet
+    obs_processor: AutoAgentObservationNet
     mlp: MLP
-    output_layers: AgentOutputNet
+    output_layers: AutoAgentOutputNet
 
     include_action_in_input: bool = eqx.field(static=True, default=False)
 
@@ -113,9 +140,11 @@ class QValueNetwork(eqx.Module):
 
         key_in, key_mlp, key_out = jax.random.split(key, 3)
 
-        self.obs_processor = AgentObservationNet(key_in, obs_space, **network_kwargs)
+        self.obs_processor = AutoAgentObservationNet(
+            key_in, obs_space, **network_kwargs
+        )
         self.mlp = MLP(key_mlp, self.obs_processor.out_features, **network_kwargs)
-        self.output_layers = AgentOutputNet(
+        self.output_layers = AutoAgentOutputNet(
             key_out,
             self.mlp.out_features,
             output_space,
