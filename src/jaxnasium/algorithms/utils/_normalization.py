@@ -33,9 +33,6 @@ class RunningStatisticsState(eqx.Module):
     def __init__(self, pytree_example, center_mean: bool = True):
         dtype: type = jnp.float64 if jax.config.jax_enable_x64 else jnp.float32  # type: ignore
 
-        if isinstance(pytree_example, jym.AgentObservation):
-            pytree_example = pytree_example.observation
-
         self.count = jnp.zeros((), dtype=dtype)
         self.mean = optax.tree_utils.tree_zeros_like(pytree_example, dtype=dtype)
         self.summed_variance = optax.tree_utils.tree_zeros_like(
@@ -90,9 +87,6 @@ class RunningStatisticsState(eqx.Module):
             std = jnp.clip(std, std_min_value, std_max_value)
             return std
 
-        if isinstance(batch, jym.AgentObservation):
-            batch = batch.observation
-
         assert jax.tree.structure(batch) == jax.tree.structure(self.mean)
         batch_leaves = jax.tree.leaves(batch)
 
@@ -131,8 +125,6 @@ class RunningStatisticsState(eqx.Module):
         )
 
     def normalize(self, batch: Array) -> Array:
-        if isinstance(batch, jym.AgentObservation):
-            batch = batch.observation
         if self.center_mean:
             batch = optax.tree.sub(batch, self.mean)
         return jax.tree.map(
@@ -186,15 +178,19 @@ class Normalizer(eqx.Module):
         gamma: float | None = 0.99,
         rew_shape: Tuple[int, ...] | None = (1,),
     ):
-        assert not normalize_obs or dummy_obs is not None, (
-            "When normalizing observations, a dummy observation must be provided."
-        )
-        self.obs = RunningStatisticsState(dummy_obs) if normalize_obs else None
-        self.reward = (
-            RunningStatisticsState(jnp.zeros(()), center_mean=False)
-            if normalize_rew
-            else None
-        )
+        self.obs = None
+        self.reward = None
+
+        if normalize_obs:
+            assert dummy_obs is not None, (
+                "When normalizing observations, a dummy observation must be provided."
+            )
+            if isinstance(dummy_obs, jym.AgentObservation):
+                dummy_obs = dummy_obs.observation
+            self.obs = RunningStatisticsState(dummy_obs)
+
+        if normalize_rew:
+            self.reward = RunningStatisticsState(jnp.zeros(()), center_mean=False)
 
         self.returns = None
         self.gamma = None
@@ -208,6 +204,8 @@ class Normalizer(eqx.Module):
     def update_obs(self, obs: PyTree) -> "Normalizer":
         if self.obs is None:
             return self
+        if isinstance(obs, jym.AgentObservation):
+            obs = obs.observation
         return eqx.tree_at(lambda x: x.obs, self, self.obs.update(obs))
 
     def update_reward(self, reward: Array, done: Array) -> "Normalizer":
@@ -239,6 +237,11 @@ class Normalizer(eqx.Module):
         """Normalizes the given batch of observations if normalization of observations is enabled."""
         if self.obs is None:
             return obs
+        if isinstance(obs, jym.AgentObservation):
+            return jym.AgentObservation(
+                observation=self.obs.normalize(obs.observation),
+                action_mask=obs.action_mask,
+            )
         return self.obs.normalize(obs)
 
     def normalize_reward(self, reward: Array) -> Array:

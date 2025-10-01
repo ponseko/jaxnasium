@@ -76,6 +76,7 @@ class Registry:
             `**env_kwargs`: Environment constructor arguments
         """
         # Handle aliases
+        assert id is not None, "Environment ID cannot be None"
         env = None
         if id in self._aliases:
             id = self._aliases[id]
