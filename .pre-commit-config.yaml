@@ -21,7 +21,7 @@ repos:
       - id: update-environments-list
         name: Update Available Environments List
         entry: |
-          python -c "
+          uv run python -c "
           import sys
           from pathlib import Path
           try:
