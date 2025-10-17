@@ -8,7 +8,7 @@ jax==0.6.2
 rice_jax @ git+https://github.com/mila-iqia/climate-cooperation-competition@GAIA_jax#subdirectory=rice_jax
 chargax @ git+https://github.com/ponseko/chargax
 pgx==2.6.0
-# jaxmarl==0.1.0 
+# jaxmarl==0.1.0
 xminigrid==0.9.1
 craftax==1.5.0
 navix==0.7.3

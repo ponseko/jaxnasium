@@ -1,6 +1,6 @@
 [project]
 name = "jaxnasium"
-version = "0.0.23"
+version = "0.0.24"
 description = "A lightweight utility library for reinforcement learning projects in JAX and Equinox."
 readme = "README.md"
 authors = [
@@ -46,7 +46,7 @@ docstring-code-format = true
 
 [tool.ruff.lint]
 extend-select = ["I"]
-ignore = ["F722", "E731"] 
+ignore = ["F722", "E731"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -56,8 +56,3 @@ venvPath = "."
 venv = ".venv"
 include = ["src", "tests"]
 exclude = ["src/jaxnasium/cli/*"]
-
-[tool.uv.workspace]
-members = [
-    "lalala",
-]

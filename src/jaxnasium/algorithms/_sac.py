@@ -7,7 +7,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import optax
-from jaxtyping import Array, PRNGKeyArray, PyTree
+from jaxtyping import Array, PRNGKeyArray
 
 import jaxnasium as jym
 from jaxnasium import Environment
@@ -42,8 +42,21 @@ class SACState(eqx.Module):
     critic1_target: QValueNetwork
     critic2_target: QValueNetwork
     alpha: Alpha
-    optimizer_state: optax.OptState
+    optimizer_state_actor: optax.OptState
+    optimizer_state_critics: optax.OptState
     normalizer: Normalizer
+
+
+def _create_schedule(anneal_param, init_value, num_training_updates):
+    """Create a linear or constant schedule based on annealing parameter."""
+    if anneal_param:
+        end_value = 0.0 if anneal_param is True else anneal_param
+        return optax.linear_schedule(
+            init_value=init_value,
+            end_value=end_value,
+            transition_steps=num_training_updates,
+        )
+    return optax.constant_schedule(init_value)
 
 
 class SAC(RLAlgorithm):
@@ -53,13 +66,20 @@ class SAC(RLAlgorithm):
     """
 
     state: SACState = eqx.field(default=None)
-    optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
+    optimizer_actor: optax.GradientTransformation = eqx.field(static=True, default=None)
+    optimizer_critics: optax.GradientTransformation = eqx.field(
+        static=True, default=None
+    )
 
-    learning_rate: float = 3e-3
-    anneal_learning_rate: bool | float = eqx.field(static=True, default=True)
+    learning_rate_actor: float = 3e-3
+    learning_rate_critics: float = 3e-4
+    anneal_learning_rate_actor: bool | float = eqx.field(static=True, default=True)
+    anneal_learning_rate_critics: bool | float = eqx.field(static=True, default=True)
+
     gamma: float = 0.99
     max_grad_norm: float = 0.5
-    update_every: int = eqx.field(static=True, default=128)
+    # update_every: int = eqx.field(static=True, default=128)
+    num_steps: int = eqx.field(static=True, default=16)
     replay_buffer_size: int = 5000
     batch_size: int = 128
     init_alpha: float = 0.2
@@ -67,6 +87,11 @@ class SAC(RLAlgorithm):
     target_entropy_scale: float = 0.5
     anneal_entropy_scale: bool | float = eqx.field(static=True, default=False)
     tau: float = 0.95
+
+    actor_num_epochs: int = eqx.field(static=True, default=1)
+    actor_num_minibatches: int = eqx.field(static=True, default=1)
+    critics_num_epochs: int = eqx.field(static=True, default=8)
+    critics_num_minibatches: int = eqx.field(static=True, default=1)
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
     num_envs: int = eqx.field(static=True, default=8)
@@ -79,49 +104,34 @@ class SAC(RLAlgorithm):
     )
 
     @property
-    def _learning_rate_schedule(self):
-        if self.anneal_learning_rate:
-            end_value = (
-                0.0 if self.anneal_learning_rate is True else self.anneal_learning_rate
-            )
-            return optax.linear_schedule(
-                init_value=self.learning_rate,
-                end_value=end_value,
-                transition_steps=self.num_training_updates,
-            )
-        return optax.constant_schedule(self.learning_rate)
-
-    @property
     def _target_entropy_scale_schedule(self):
-        if self.anneal_entropy_scale:
-            end_value = (
-                0.0 if self.anneal_entropy_scale is True else self.anneal_entropy_scale
-            )
-            return optax.linear_schedule(
-                init_value=self.target_entropy_scale,
-                end_value=end_value,
-                transition_steps=self.num_training_updates,
-            )
-        return optax.constant_schedule(self.target_entropy_scale)
+        return _create_schedule(
+            self.anneal_entropy_scale,
+            self.target_entropy_scale,
+            self.num_training_updates_actor,
+        )
 
     @property
     def num_iterations(self):
-        return int(self.total_timesteps // self.update_every)
+        return int(self.total_timesteps // self.num_steps // self.num_envs)
 
     @property
-    def num_steps(self):  # rollout length
-        return int(self.update_every // self.num_envs)
+    def update_every(self):
+        return int(self.num_steps * self.num_envs)
 
     @property
-    def num_training_updates(self):
-        return self.num_iterations  # * num_epochs
+    def num_training_updates_actor(self):
+        return self.num_iterations * self.actor_num_epochs * self.actor_num_minibatches
+
+    @property
+    def num_training_updates_critics(self):
+        return (
+            self.num_iterations * self.critics_num_epochs * self.critics_num_minibatches
+        )
 
     @staticmethod
     def get_action(
-        key: PRNGKeyArray,
-        state: SACState,
-        observation: PyTree,
-        deterministic: bool = False,
+        key: PRNGKeyArray, state: SACState, observation, deterministic: bool = False
     ) -> Array:
         observation = state.normalizer.normalize_obs(observation)
         action_dist = state.actor(observation)
@@ -133,12 +143,33 @@ class SAC(RLAlgorithm):
         if getattr(env, "multi_agent", False) and self.auto_upgrade_multi_agent:
             self = self.__make_multi_agent__()
 
-        if self.optimizer is None:
+        if self.optimizer_actor is None:
             self = replace(
                 self,
-                optimizer=optax.chain(
+                optimizer_actor=optax.chain(
                     optax.clip_by_global_norm(self.max_grad_norm),
-                    optax.adabelief(learning_rate=self._learning_rate_schedule),
+                    optax.adabelief(
+                        learning_rate=_create_schedule(
+                            self.anneal_learning_rate_actor,
+                            self.learning_rate_actor,
+                            self.num_training_updates_actor,
+                        )
+                    ),
+                ),
+            )
+
+        if self.optimizer_critics is None:
+            self = replace(
+                self,
+                optimizer_critics=optax.chain(
+                    optax.clip_by_global_norm(self.max_grad_norm),
+                    optax.adabelief(
+                        learning_rate=_create_schedule(
+                            self.anneal_learning_rate_critics,
+                            self.learning_rate_critics,
+                            self.num_training_updates_critics,
+                        )
+                    ),
                 ),
             )
 
@@ -177,13 +208,13 @@ class SAC(RLAlgorithm):
 
             # Add new data to buffer & Sample update batch from the buffer
             buffer = buffer.insert(trajectory_batch)
-            train_data = buffer.sample(rng)
+            train_batch = buffer.sample(rng)
 
             # Update
             updated_state = self._update_agent_state(
                 rng,
                 updated_state,  # <-- use updated_state w/ updated norm
-                train_data,
+                train_batch,
             )
 
             metric = trajectory_batch.info or {}
@@ -273,7 +304,7 @@ class SAC(RLAlgorithm):
         return updated_state
 
     def _update_agent_state(
-        self, key: PRNGKeyArray, current_state: SACState, batch: Transition
+        self, key: PRNGKeyArray, current_state: SACState, train_batch: Transition
     ) -> SACState:
         def _compute_soft_target(action_dist, action_log_probs, q_1, q_2):
             def discrete_soft_target(action_probs, q_1, q_2):
@@ -291,118 +322,162 @@ class SAC(RLAlgorithm):
                 return discrete_soft_target(action_dist.probs, q_1, q_2)
             return continuous_soft_target(action_log_probs, q_1, q_2)
 
-        @eqx.filter_grad
-        def __sac_qnet_loss(params, batch: Transition):
-            def get_q_from_actions(q, actions):
-                """Get the Q value from the actions that were taken."""
-                if q.squeeze().shape == actions.squeeze().shape:
-                    # Q is already given for the taken action (Continuous case)
-                    return q
-                # Discrete case: we need to index the Q values with the actions
-                return jnp.take_along_axis(q, actions[..., None], axis=-1).squeeze()
-
-            q_out = jax.vmap(params)(batch.observation, batch.action)
-            q_out = jax.tree.map(get_q_from_actions, q_out, batch.action)
-            # q_loss = jax.tree.map(
-            #     lambda q, t: optax.losses.huber_loss(q, t), q_out, q_target
-            # )
-            q_loss = jax.tree.map(lambda q, t: jnp.mean((q - t) ** 2), q_out, q_target)
-            return jym.tree.mean(q_loss)
-
-        @eqx.filter_grad
-        def __sac_actor_loss(params, batch: Transition):
-            action_dist = jax.vmap(params)(batch.observation)
-            action, log_prob = action_dist.sample_and_log_prob(seed=actor_loss_key)
-            q_1 = jax.vmap(current_state.critic1)(batch.observation, action)
-            q_2 = jax.vmap(current_state.critic2)(batch.observation, action)
-            target = jym.tree.map_distribution(
-                _compute_soft_target, action_dist, log_prob, q_1, q_2
-            )
-            return -jym.tree.mean(target)
-
-        @eqx.filter_grad
-        def __sac_alpha_loss(params: Alpha):
-            def alpha_loss_per_action_dist(action_dist):
-                if isinstance(action_dist, distrax.Categorical):
-                    log_probs = jnp.log(action_dist.probs + 1e-8)
-                    action_dim = jnp.prod(jnp.array(log_probs.shape[1:]))
-                    action_dim = jnp.log(1 / action_dim)
-                else:  # Continuous action space
-                    _, log_probs = action_dist.sample_and_log_prob(seed=actor_loss_key)
-                    action_dim = jnp.prod(jnp.array(batch.action.shape[1:]))
-
-                update_count = jym.tree.get_first(
-                    current_state.optimizer_state, "count"
-                )
-                target_entropy_scale = self._target_entropy_scale_schedule(update_count)
-                target_entropy = -(target_entropy_scale * action_dim)
-                return -jnp.mean(params() * (log_probs + target_entropy))
-
-            action_dist = jax.vmap(current_state.actor)(batch.observation)
-            loss = jym.tree.map_distribution(alpha_loss_per_action_dist, action_dist)
-            loss = jym.tree.mean(loss)
-            return loss
-
-        rng, target_key, actor_loss_key = jax.random.split(key, 3)
-
-        action_dist = jax.vmap(current_state.actor)(batch.next_observation)
-        action, action_log_prob = action_dist.sample_and_log_prob(seed=target_key)
-        q_1 = jax.vmap(current_state.critic1_target)(batch.next_observation, action)
-        q_2 = jax.vmap(current_state.critic2_target)(batch.next_observation, action)
-        target = jym.tree.map_distribution(
-            _compute_soft_target, action_dist, action_log_prob, q_1, q_2
-        )
-        reward = current_state.normalizer.normalize_reward(batch.reward)
-
         def broadcast_to_match(x, target_ndim):
             """Add dimensions to x to match target_ndim."""
             return jnp.reshape(x, x.shape + (1,) * (target_ndim - x.ndim))
 
-        q_target = jax.tree.map(
-            lambda targ: broadcast_to_match(reward, targ.ndim)
-            + (1.0 - broadcast_to_match(batch.terminated, targ.ndim))
-            * self.gamma
-            * targ,
-            target,
+        def update_critics(current_state: SACState, batch: Transition):
+            @eqx.filter_grad
+            def __sac_qnet_loss(params, batch: Transition):
+                def get_q_from_actions(q, actions):
+                    """Get the Q value from the actions that were taken."""
+                    if q.squeeze().shape == actions.squeeze().shape:
+                        # Q is already given for the taken action (Continuous case)
+                        return q
+                    # Discrete case: we need to index the Q values with the actions
+                    return jnp.take_along_axis(q, actions[..., None], axis=-1).squeeze()
+
+                q_out = jax.vmap(params)(batch.observation, batch.action)
+                q_out = jax.tree.map(get_q_from_actions, q_out, batch.action)
+                q_loss = jax.tree.map(
+                    lambda q, t: optax.losses.huber_loss(q, t), q_out, q_target
+                )
+                # q_loss = jax.tree.map(lambda q, t: jnp.mean((q - t) ** 2), q_out, q_target)
+                return jym.tree.mean(q_loss)
+
+            action_dist = jax.vmap(current_state.actor)(batch.next_observation)
+            action, action_log_prob = action_dist.sample_and_log_prob(seed=keys[3])
+            q_1_target = jax.vmap(current_state.critic1_target)(
+                batch.next_observation, action
+            )
+            q_2_target = jax.vmap(current_state.critic2_target)(
+                batch.next_observation, action
+            )
+            target = jym.tree.map_distribution(
+                _compute_soft_target,
+                action_dist,
+                action_log_prob,
+                q_1_target,
+                q_2_target,
+            )
+            reward = current_state.normalizer.normalize_reward(batch.reward)
+            q_target = jax.tree.map(
+                lambda targ: broadcast_to_match(reward, targ.ndim)
+                + (1.0 - broadcast_to_match(batch.terminated, targ.ndim))
+                * self.gamma
+                * targ,
+                target,
+            )
+            critic_1_grads = __sac_qnet_loss(current_state.critic1, batch)
+            critic_2_grads = __sac_qnet_loss(current_state.critic2, batch)
+            updates, optimizer_state = self.optimizer_critics.update(
+                (critic_1_grads, critic_2_grads),
+                current_state.optimizer_state_critics,
+            )
+            new_critic1, new_critic2 = eqx.apply_updates(
+                (current_state.critic1, current_state.critic2),
+                updates,
+            )
+            return replace(
+                current_state,
+                critic1=new_critic1,
+                critic2=new_critic2,
+                optimizer_state_critics=optimizer_state,
+            ), None
+
+        def update_actor_and_alpha(current_state: SACState, batch: Transition):
+            @eqx.filter_grad
+            def __sac_actor_loss(params, batch: Transition):
+                action_dist = jax.vmap(params)(batch.observation)
+                action, log_prob = action_dist.sample_and_log_prob(seed=keys[4])
+                q_1 = jax.vmap(current_state.critic1)(batch.observation, action)
+                q_2 = jax.vmap(current_state.critic2)(batch.observation, action)
+                target = jym.tree.map_distribution(
+                    _compute_soft_target, action_dist, log_prob, q_1, q_2
+                )
+                return -jym.tree.mean(target)
+
+            @eqx.filter_grad
+            def __sac_alpha_loss(params: Alpha, batch: Transition):
+                def alpha_loss_per_action_dist(action_dist):
+                    if isinstance(action_dist, distrax.Categorical):
+                        log_probs = jnp.log(action_dist.probs + 1e-8)
+                        action_dim = jnp.prod(jnp.array(log_probs.shape[1:]))
+                        action_dim = jnp.log(1 / action_dim)
+                    else:  # Continuous action space
+                        _, log_probs = action_dist.sample_and_log_prob(seed=keys[5])
+                        action_dim = jnp.prod(jnp.array(batch.action.shape[1:]))
+
+                    update_count = jym.tree.get_first(
+                        current_state.optimizer_state_actor, "count"
+                    )
+                    target_entropy_scale = self._target_entropy_scale_schedule(
+                        update_count
+                    )
+                    target_entropy = -(target_entropy_scale * action_dim)
+                    return -jnp.mean(params() * (log_probs + target_entropy))
+
+                action_dist = jax.vmap(current_state.actor)(batch.observation)
+                loss = jym.tree.map_distribution(
+                    alpha_loss_per_action_dist, action_dist
+                )
+                loss = jym.tree.mean(loss)
+                return loss
+
+            actor_grads = __sac_actor_loss(current_state.actor, batch)
+            alpha_grads = __sac_alpha_loss(current_state.alpha, batch)
+
+            updates, optimizer_state = self.optimizer_actor.update(
+                (actor_grads, alpha_grads),
+                current_state.optimizer_state_actor,
+            )
+            new_actor, new_alpha = eqx.apply_updates(
+                (current_state.actor, current_state.alpha),
+                updates,
+            )
+            return replace(
+                current_state,
+                actor=new_actor,
+                alpha=new_alpha if self.learn_alpha else current_state.alpha,
+                optimizer_state_actor=optimizer_state,
+            ), None
+
+        keys = jax.random.split(key, 5)
+
+        # Update the critics for each minibatch and epoch
+        critic_train_batches = train_batch.make_minibatches(
+            keys[1],
+            self.critics_num_minibatches,
+            self.critics_num_epochs,
+            n_batch_axis=1,
+        )
+        updated_state, _ = jax.lax.scan(
+            update_critics, current_state, critic_train_batches, unroll=8
         )
 
-        critic1_grads = __sac_qnet_loss(current_state.critic1, batch)
-        critic2_grads = __sac_qnet_loss(current_state.critic2, batch)
-        actor_grads = __sac_actor_loss(current_state.actor, batch)
-        alpha_grads = __sac_alpha_loss(current_state.alpha)
-
-        updates, optimizer_state = self.optimizer.update(
-            (actor_grads, critic1_grads, critic2_grads, alpha_grads),
-            current_state.optimizer_state,
+        # Update the actor and Alpha for each minibatch and epoch
+        actor_train_batches = train_batch.make_minibatches(
+            keys[2],
+            self.actor_num_minibatches,
+            self.actor_num_epochs,
+            n_batch_axis=1,
         )
-        new_actor, new_critic1, new_critic2, new_alpha = eqx.apply_updates(
-            (
-                current_state.actor,
-                current_state.critic1,
-                current_state.critic2,
-                current_state.alpha,
-            ),
-            updates,
+        updated_state, _ = jax.lax.scan(
+            update_actor_and_alpha, updated_state, actor_train_batches, unroll=8
         )
 
         # Update target networks
         new_critic1_target, new_critic2_target = jax.tree.map(
             lambda x, y: self.tau * x + (1 - self.tau) * y,
             (current_state.critic1_target, current_state.critic2_target),
-            (new_critic1, new_critic2),
+            (updated_state.critic1, updated_state.critic2),
         )
 
-        updated_state = SACState(
-            actor=new_actor,
-            critic1=new_critic1,
-            critic2=new_critic2,
+        return replace(
+            updated_state,
             critic1_target=new_critic1_target,
             critic2_target=new_critic2_target,
-            optimizer_state=optimizer_state,
-            alpha=new_alpha if self.learn_alpha else current_state.alpha,
-            normalizer=current_state.normalizer,
         )
-        return updated_state
 
     def _make_agent_state(
         self,
@@ -435,8 +510,12 @@ class SAC(RLAlgorithm):
         critic2_target = jax.tree.map(lambda x: x, critic2)
         alpha = Alpha(jnp.log(self.init_alpha))
 
-        optimizer_state = self.optimizer.init(
-            eqx.filter((actor, critic1, critic2, alpha), eqx.is_inexact_array)
+        # Alpha shares the same optimizer
+        optimizer_state_actor = self.optimizer_actor.init(
+            eqx.filter((actor, alpha), eqx.is_inexact_array)
+        )
+        optimizer_state_critics = self.optimizer_critics.init(
+            eqx.filter((critic1, critic2), eqx.is_inexact_array)
         )
 
         dummy_obs = jax.tree.map(
@@ -458,6 +537,7 @@ class SAC(RLAlgorithm):
             critic1_target=critic1_target,
             critic2_target=critic2_target,
             alpha=alpha,
-            optimizer_state=optimizer_state,
+            optimizer_state_actor=optimizer_state_actor,
+            optimizer_state_critics=optimizer_state_critics,
             normalizer=normalization_state,
         )
