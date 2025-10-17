@@ -4,7 +4,7 @@ brax==0.13.0
 gym==0.26.2
 jumanji==1.1.1
 econojax @ git+https://github.com/ponseko/econojax
-jax==0.6.0
+jax==0.6.2
 rice_jax @ git+https://github.com/mila-iqia/climate-cooperation-competition@GAIA_jax#subdirectory=rice_jax
 chargax @ git+https://github.com/ponseko/chargax
 pgx==2.6.0

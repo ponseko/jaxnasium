@@ -37,15 +37,16 @@ class PQN(RLAlgorithm):
     state: PQNState = eqx.field(default=None)
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
 
-    learning_rate: float = 2.5e-3
+    learning_rate: float = 2.5e-4
     anneal_learning_rate: bool | float = eqx.field(static=True, default=True)
     gamma: float = 0.99
-    max_grad_norm: float = 0.5
-    epsilon: float = 0.1
+    max_grad_norm: float = 10.0
+    epsilon: float = 0.25
     anneal_epsilon: bool | float = eqx.field(static=True, default=True)
+    q_lambda: float = 0.65
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
-    num_envs: int = eqx.field(static=True, default=24)
+    num_envs: int = eqx.field(static=True, default=12)
     num_steps: int = eqx.field(static=True, default=128)  # steps per environment
     num_minibatches: int = eqx.field(static=True, default=4)  # Number of mini-batches
     num_epochs: int = eqx.field(static=True, default=4)  # K epochs
@@ -153,7 +154,9 @@ class PQN(RLAlgorithm):
             metric = trajectory_batch.info or {}
 
             # Post-process the trajectory batch (GAE, returns, normalization)
-            updated_state = self._postprocess_rollout(trajectory_batch, self.state)
+            trajectory_batch, updated_state = self._postprocess_rollout(
+                trajectory_batch, self.state
+            )
 
             # Update agent
             updated_state = self._update_agent_state(
@@ -200,6 +203,9 @@ class PQN(RLAlgorithm):
                 step_key, env_state, action
             )
 
+            next_q_values = jax.vmap(self.state.critic)(info[ORIGINAL_OBSERVATION_KEY])
+            next_q_values = jnp.max(next_q_values, axis=-1)
+
             # Build a single transition. jax.lax.scan builds a batch of transitions.
             transition = Transition(
                 observation=last_obs,
@@ -208,6 +214,7 @@ class PQN(RLAlgorithm):
                 terminated=terminated,
                 truncated=truncated,
                 next_observation=info[ORIGINAL_OBSERVATION_KEY],
+                next_value=next_q_values,
                 info=info,
             )
 
@@ -223,15 +230,40 @@ class PQN(RLAlgorithm):
 
     def _postprocess_rollout(
         self, trajectory_batch: Transition, current_state: PQNState
-    ) -> PQNState:
-        """Returns updated normalization based on the new trajectory batch."""
+    ) -> tuple[Transition, PQNState]:
+        """Returns updated normalization based on the new trajectory batch
+        and returns the Qlambda targets.
+        """
+
+        def compute_q_lambda_scan(next_return, batch: Transition):
+            norm_reward = current_state.normalizer.normalize_reward(batch.reward)
+            done = batch.terminated
+            if done.ndim < norm_reward.ndim:
+                # correct for multi-agent envs that do not return done flags per agent
+                done = jnp.expand_dims(done, axis=-1)
+
+            return_this_step = norm_reward + (1 - done) * self.gamma * (
+                self.q_lambda * next_return + (1 - self.q_lambda) * batch.next_value  # type: ignore
+            )
+            return return_this_step, return_this_step
+
+        assert trajectory_batch.next_value is not None
+        _, returns = jax.lax.scan(
+            compute_q_lambda_scan,
+            trajectory_batch.next_value[-1].astype(jnp.float32),
+            trajectory_batch,
+            reverse=True,
+            unroll=16,
+        )
+
+        trajectory_batch = replace(trajectory_batch, return_=returns)
 
         # Update normalization params
         updated_state = replace(
             current_state, normalizer=current_state.normalizer.update(trajectory_batch)
         )
 
-        return updated_state
+        return trajectory_batch, updated_state
 
     def _update_agent_state(
         self, key, current_state: PQNState, train_data: Transition
@@ -249,16 +281,16 @@ class PQN(RLAlgorithm):
                 )
                 # idx1 = jnp.arange(q_out_1.shape[0])
                 # selected_q_values = q_out_1[idx1, train_batch.action]
-                q_loss = jnp.mean((acted_q_values - target) ** 2)
+                q_loss = jnp.mean((acted_q_values - minibatch.return_) ** 2)
                 return q_loss
 
             # Compute target
-            q_target_output = jax.vmap(current_state.critic)(minibatch.next_observation)
-            reward = current_state.normalizer.normalize_reward(minibatch.reward)
-            target = reward + ~minibatch.terminated * self.gamma * jnp.max(
-                q_target_output,
-                axis=-1,  # assumes discrete actions (flatten multidiscrete spaces first)
-            )
+            # q_target_output = jax.vmap(current_state.critic)(minibatch.next_observation)
+            # reward = current_state.normalizer.normalize_reward(minibatch.reward)
+            # target = reward + ~minibatch.terminated * self.gamma * jnp.max(
+            #     q_target_output,
+            #     axis=-1,  # assumes discrete actions (flatten multidiscrete spaces first)
+            # )
 
             grads = __dqn_loss(current_state.critic, minibatch)
             updates, optimizer_state = self.optimizer.update(
