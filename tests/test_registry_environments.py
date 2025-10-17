@@ -32,6 +32,7 @@ SKIP_ENVS = {
     "BinPack-v2": "Heterogeneous multi-discrete action space",  # TODO: MultiDiscrete->PyTree[Discrete] Wrapper?
     "MultiCVRP-v0": "Observation space mismatch",
     "LevelBasedForaging-v0": "Is multi-agent, but not marked as such yet",  # TODO: multi agent flag in registry?
+    "ant_4x2": "Uses deprecated jax.tree_map",
     # "some_problematic_env": "Known issue with this environment"
 }
 

@@ -208,12 +208,13 @@ class SAC(RLAlgorithm):
 
             # Add new data to buffer & Sample update batch from the buffer
             buffer = buffer.insert(trajectory_batch)
+            train_batch = buffer.sample(rng)
 
             # Update
             updated_state = self._update_agent_state(
                 rng,
                 updated_state,  # <-- use updated_state w/ updated norm
-                buffer,
+                train_batch,
             )
 
             metric = trajectory_batch.info or {}
@@ -303,7 +304,7 @@ class SAC(RLAlgorithm):
         return updated_state
 
     def _update_agent_state(
-        self, key: PRNGKeyArray, current_state: SACState, buffer: TransitionBuffer
+        self, key: PRNGKeyArray, current_state: SACState, train_batch: Transition
     ) -> SACState:
         def _compute_soft_target(action_dist, action_log_probs, q_1, q_2):
             def discrete_soft_target(action_probs, q_1, q_2):
@@ -441,8 +442,7 @@ class SAC(RLAlgorithm):
                 optimizer_state_actor=optimizer_state,
             ), None
 
-        keys = jax.random.split(key, 6)
-        train_batch = buffer.sample(keys[0])
+        keys = jax.random.split(key, 5)
 
         # Update the critics for each minibatch and epoch
         critic_train_batches = train_batch.make_minibatches(
