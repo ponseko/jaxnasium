@@ -203,9 +203,6 @@ class PQN(RLAlgorithm):
                 step_key, env_state, action
             )
 
-            next_q_values = jax.vmap(self.state.critic)(info[ORIGINAL_OBSERVATION_KEY])
-            next_q_values = jnp.max(next_q_values, axis=-1)
-
             # Build a single transition. jax.lax.scan builds a batch of transitions.
             transition = Transition(
                 observation=last_obs,
@@ -214,7 +211,6 @@ class PQN(RLAlgorithm):
                 terminated=terminated,
                 truncated=truncated,
                 next_observation=info[ORIGINAL_OBSERVATION_KEY],
-                next_value=next_q_values,
                 info=info,
             )
 
@@ -236,21 +232,30 @@ class PQN(RLAlgorithm):
         """
 
         def compute_q_lambda_scan(next_return, batch: Transition):
+            next_obs = batch.next_observation
+            norm_next_obs = current_state.normalizer.normalize_obs(next_obs)
             norm_reward = current_state.normalizer.normalize_reward(batch.reward)
+            next_q_values = jax.vmap(current_state.critic)(norm_next_obs)
+            next_q_values = jnp.max(next_q_values, axis=-1)
+
             done = batch.terminated
             if done.ndim < norm_reward.ndim:
                 # correct for multi-agent envs that do not return done flags per agent
                 done = jnp.expand_dims(done, axis=-1)
 
             return_this_step = norm_reward + (1 - done) * self.gamma * (
-                self.q_lambda * next_return + (1 - self.q_lambda) * batch.next_value  # type: ignore
+                self.q_lambda * next_return + (1 - self.q_lambda) * next_q_values
             )
             return return_this_step, return_this_step
 
-        assert trajectory_batch.next_value is not None
+        assert trajectory_batch.next_observation is not None
+        last_obs = current_state.normalizer.normalize_obs(
+            jax.tree.map(lambda x: x[-1], trajectory_batch.next_observation)
+        )
+        last_q_values = jax.vmap(current_state.critic)(last_obs).max(axis=-1)
         _, returns = jax.lax.scan(
             compute_q_lambda_scan,
-            trajectory_batch.next_value[-1].astype(jnp.float32),
+            last_q_values.astype(jnp.float32),
             trajectory_batch,
             reverse=True,
             unroll=16,
