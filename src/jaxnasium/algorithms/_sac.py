@@ -90,7 +90,7 @@ class SAC(RLAlgorithm):
 
     actor_num_epochs: int = eqx.field(static=True, default=1)
     actor_num_minibatches: int = eqx.field(static=True, default=1)
-    critics_num_epochs: int = eqx.field(static=True, default=1)
+    critics_num_epochs: int = eqx.field(static=True, default=8)
     critics_num_minibatches: int = eqx.field(static=True, default=1)
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
