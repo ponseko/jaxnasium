@@ -191,10 +191,15 @@ def tree_batch_sum(values, num_batch_dimensions=1):
 
 def tree_gather_actions(tree: PyTree, actions: PyTree):
     """Given a (pytree of) array-like values, gather the elements based
-    on the indices provided in `actions`.
+    on the indices provided in `actions`. If the arrays in `tree` are of the same
+    shape as `actions`, the tree is assumed to be array of actions taken and
+    the array is returned as is. This may be the case in continuous action spaces.
 
     For example, when given a (pytree of) q-values for each possible action,
     this function will return the q-values corresponding to the actions taken.
+    In continuous action spaces, q-values cannot be generated per action and
+    tree will already contain the q-value for the action taken. This q-value
+    is then returned as is.
 
     **Arguments**:
         tree: Array or Pytree of arrays.

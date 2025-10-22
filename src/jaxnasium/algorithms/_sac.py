@@ -322,27 +322,12 @@ class SAC(RLAlgorithm):
                 return discrete_soft_target(action_dist.probs, q_1, q_2)
             return continuous_soft_target(action_log_probs, q_1, q_2)
 
-        def broadcast_to_match(x, target_ndim):
-            """Add dimensions to x to match target_ndim."""
-            return jnp.reshape(x, x.shape + (1,) * (target_ndim - x.ndim))
-
         def update_critics(current_state: SACState, batch: Transition):
             @eqx.filter_grad
             def __sac_qnet_loss(params, batch: Transition):
-                def get_q_from_actions(q, actions):
-                    """Get the Q value from the actions that were taken."""
-                    if q.squeeze().shape == actions.squeeze().shape:
-                        # Q is already given for the taken action (Continuous case)
-                        return q
-                    # Discrete case: we need to index the Q values with the actions
-                    return jnp.take_along_axis(q, actions[..., None], axis=-1).squeeze()
-
                 q_out = jax.vmap(params)(batch.observation, batch.action)
-                q_out = jax.tree.map(get_q_from_actions, q_out, batch.action)
-                q_loss = jax.tree.map(
-                    lambda q, t: optax.losses.huber_loss(q, t), q_out, q_target
-                )
-                # q_loss = jax.tree.map(lambda q, t: jnp.mean((q - t) ** 2), q_out, q_target)
+                q_taken = jym.tree.gather_actions(q_out, batch.action)
+                q_loss = optax.losses.huber_loss(q_taken, q_target)
                 return jym.tree.mean(q_loss)
 
             action_dist = jax.vmap(current_state.actor)(batch.next_observation)
@@ -360,14 +345,8 @@ class SAC(RLAlgorithm):
                 q_1_target,
                 q_2_target,
             )
-            reward = current_state.normalizer.normalize_reward(batch.reward)
-            q_target = jax.tree.map(
-                lambda targ: broadcast_to_match(reward, targ.ndim)
-                + (1.0 - broadcast_to_match(batch.terminated, targ.ndim))
-                * self.gamma
-                * targ,
-                target,
-            )
+            target = jym.tree.batch_sum(target)
+            q_target = batch.reward + (1.0 - batch.terminated) * self.gamma * target
             critic_1_grads = __sac_qnet_loss(current_state.critic1, batch)
             critic_2_grads = __sac_qnet_loss(current_state.critic2, batch)
             updates, optimizer_state = self.optimizer_critics.update(
@@ -441,6 +420,15 @@ class SAC(RLAlgorithm):
                 alpha=new_alpha if self.learn_alpha else current_state.alpha,
                 optimizer_state_actor=optimizer_state,
             ), None
+
+        # Normalize all used inputs, if normalization is disabled, these are no-ops
+        normalizer = current_state.normalizer
+        train_batch = replace(
+            train_batch,
+            observation=normalizer.normalize_obs(train_batch.observation),
+            next_observation=normalizer.normalize_obs(train_batch.next_observation),
+            reward=normalizer.normalize_reward(train_batch.reward),
+        )
 
         keys = jax.random.split(key, 5)
 
