@@ -45,7 +45,7 @@ class DQN(RLAlgorithm):
     optimizer: optax.GradientTransformation = eqx.field(static=True, default=None)
     "Optimizer used for training the networks."
 
-    learning_rate: float = 2.5e-3
+    learning_rate: float = 2.5e-4
     anneal_learning_rate: bool | float = eqx.field(static=True, default=False)
     "Whether to anneal the learning rate over time. Set to a float to specify the end value. True means 0.0."
     gamma: float = 0.99
@@ -271,22 +271,23 @@ class DQN(RLAlgorithm):
         @eqx.filter_grad
         def __dqn_loss(params: QValueNetwork, train_batch: Transition):
             q_out_1 = jax.vmap(params)(train_batch.observation)
-            acted_q_values = jax.tree.map(
-                lambda q, a: jnp.take_along_axis(q, a[..., None], axis=-1).squeeze(),
-                q_out_1,
-                train_batch.action,
-            )
-            # idx1 = jnp.arange(q_out_1.shape[0])
-            # selected_q_values = q_out_1[idx1, train_batch.action]
-            q_loss = jnp.mean((acted_q_values - target) ** 2)
-            return q_loss
+            q_taken = jym.tree.gather_actions(q_out_1, train_batch.action)
+            q_loss = optax.huber_loss(q_taken, target)
+            return jym.tree.mean(q_loss)
 
         assert batch.next_observation is not None
 
+        normalizer = current_state.normalizer
+        batch = replace(
+            batch,
+            observation=normalizer.normalize_obs(batch.observation),
+            next_observation=normalizer.normalize_obs(batch.next_observation),
+            reward=normalizer.normalize_reward(batch.reward),
+        )
+
         # Compute target
         q_target_output = jax.vmap(current_state.critic_target)(batch.next_observation)
-        reward = current_state.normalizer.normalize_reward(batch.reward)
-        target = reward + ~batch.terminated * self.gamma * jnp.max(
+        target = batch.reward + ~batch.terminated * self.gamma * jnp.max(
             q_target_output,
             axis=-1,  # assumes discrete actions (flatten multidiscrete spaces first)
         )
