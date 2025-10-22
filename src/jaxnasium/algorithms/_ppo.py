@@ -297,15 +297,6 @@ class PPO(RLAlgorithm):
             assert train_batch.return_ is not None
             assert train_batch.log_prob is not None
 
-            def pytree_batch_sum(values):
-                batch_wise_sums = jax.tree.map(
-                    lambda x: jnp.sum(x, axis=tuple(range(1, x.ndim)))
-                    if x.ndim > 1
-                    else x,
-                    values,
-                )
-                return jax.tree.reduce(lambda a, b: a + b, batch_wise_sums)
-
             actor, critic = params
             norm_obs = current_state.normalizer.normalize_obs(train_batch.observation)
             action_dist = jax.vmap(actor)(norm_obs)
@@ -314,9 +305,9 @@ class PPO(RLAlgorithm):
             value = jax.vmap(critic)(norm_obs)
             init_log_prob = train_batch.log_prob
 
-            log_prob = pytree_batch_sum(log_prob)
-            init_log_prob = pytree_batch_sum(init_log_prob)
-            entropy = pytree_batch_sum(entropy)
+            log_prob = jym.tree.batch_sum(log_prob)
+            init_log_prob = jym.tree.batch_sum(init_log_prob)
+            entropy = jym.tree.batch_sum(entropy)
 
             ratio = jnp.exp(log_prob - init_log_prob)
             _advantages = (train_batch.advantage - train_batch.advantage.mean()) / (
