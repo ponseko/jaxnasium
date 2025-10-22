@@ -277,25 +277,9 @@ class PQN(RLAlgorithm):
             @eqx.filter_grad
             def __dqn_loss(params: QValueNetwork, train_batch: Transition):
                 q_out_1 = jax.vmap(params)(train_batch.observation)
-                acted_q_values = jax.tree.map(
-                    lambda q, a: jnp.take_along_axis(
-                        q, a[..., None], axis=-1
-                    ).squeeze(),
-                    q_out_1,
-                    train_batch.action,
-                )
-                # idx1 = jnp.arange(q_out_1.shape[0])
-                # selected_q_values = q_out_1[idx1, train_batch.action]
-                q_loss = jnp.mean((acted_q_values - minibatch.return_) ** 2)
-                return q_loss
-
-            # Compute target
-            # q_target_output = jax.vmap(current_state.critic)(minibatch.next_observation)
-            # reward = current_state.normalizer.normalize_reward(minibatch.reward)
-            # target = reward + ~minibatch.terminated * self.gamma * jnp.max(
-            #     q_target_output,
-            #     axis=-1,  # assumes discrete actions (flatten multidiscrete spaces first)
-            # )
+                q_taken = jym.tree.gather_actions(q_out_1, train_batch.action)
+                q_loss = optax.huber_loss(q_taken, minibatch.return_)
+                return jym.tree.mean(q_loss)
 
             grads = __dqn_loss(current_state.critic, minibatch)
             updates, optimizer_state = self.optimizer.update(
@@ -319,6 +303,10 @@ class PQN(RLAlgorithm):
             )
             return updated_state, None
 
+        train_data = replace(
+            train_data,
+            observation=current_state.normalizer.normalize_obs(train_data.observation),
+        )
         update_keys = jax.random.split(key, self.num_epochs)
         updated_state, _ = jax.lax.scan(
             scan_epoch_update, current_state, update_keys, unroll=16
