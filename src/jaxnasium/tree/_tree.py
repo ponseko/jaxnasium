@@ -6,8 +6,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, PyTree, PyTreeDef
 
-""" 
-Convenience pytree functions used in the various RL algorithms which 
+"""
+Convenience pytree functions used in the various RL algorithms which
 aren't found in used higher-level libraries (equinox / jax).
 """
 
@@ -137,6 +137,77 @@ def tree_get_first(tree: PyTree, key: str) -> Any:
     if not found_values_with_path:
         raise KeyError(f"Key '{key}' not found in tree: {tree}.")
     return found_values_with_path[0][1]
+
+
+def tree_batch_sum(values, num_batch_dimensions=1):
+    """
+    Sum over all non-batch axes of each leaf in a pytree, then sum (reduce) across leaves.
+    The batch dimension(s) is/are assumed to be the leading dimensions.
+
+    This is essentially `jaxnasium.tree.sum` or `optax.tree.sum` but with a variable
+    axis argument resulting in a sum over all non-batch axes.
+
+    **Arguments**:
+        values:  Pytree of JAX arrays. Every leaf must have at least `num_batch_dimensions` leading dimensions.
+        num_batch_dimensions: Number of leading batch axes (> 0).
+
+    **Returns**:
+        A JAX array with the same shape as the batch dimensions.
+
+    **Notes**:
+       - If `num_batch_dimensions == 0`, this sums the entire tree to a scalar result.
+
+    **Example**:
+        >>> tree = {"a": jnp.array([[1, 2], [3, 4]]), "b": jnp.array([[5, 6], [7, 8]])}
+        >>> tree_batch_sum(tree, num_batch_dimensions=1)
+        Array([14, 22])
+
+        >>> tree2 = {"x": jnp.ones((2, 3, 4)), "y": jnp.ones((2, 3, 4))}
+        >>> tree_batch_sum(tree2, num_batch_dimensions=2).shape
+        (2, 3)
+
+        >>> tree_batch_sum(tree2, num_batch_dimensions=0)
+        Array(48, dtype=int32)
+
+    """
+    assert all(x.ndim >= num_batch_dimensions for x in jax.tree.leaves(values)), (
+        f"Each array in the pytree must have at least `num_batch_dimensions` ({num_batch_dimensions}) dimensions, "
+        f"but got {values}"
+    )
+    assert all(
+        x.shape[:num_batch_dimensions]
+        == jax.tree.leaves(values)[0].shape[:num_batch_dimensions]
+        for x in jax.tree.leaves(values)
+    ), (
+        f"Each array in the pytree must have the same shape for the first {num_batch_dimensions} dimensions, "
+        f"but got {values}"
+    )
+    batch_wise_sums = jax.tree.map(
+        lambda x: jnp.sum(x, axis=tuple(range(num_batch_dimensions, x.ndim))),
+        values,
+    )
+    return jax.tree.reduce(operator.add, batch_wise_sums, initializer=0)
+
+
+def tree_gather_actions(tree: PyTree, actions: PyTree):
+    """Given a (pytree of) array-like values, gather the elements based
+    on the indices provided in `actions`.
+
+    For example, when given a (pytree of) q-values for each possible action,
+    this function will return the q-values corresponding to the actions taken.
+
+    **Arguments**:
+        tree: Array or Pytree of arrays.
+        actions: Array or same-structure Pytree of arrays as `tree`. The final axis of
+        `actions` must contain elements that are valid indices for the corresponding arrays in `tree`.
+    """
+
+    def gather_actions(arr, indices):
+        if arr.squeeze().shape == indices.squeeze().shape:
+            return arr
+        return jnp.take_along_axis(arr, indices[..., None], axis=-1).squeeze()
+
+    return jax.tree.map(gather_actions, tree, actions)
 
 
 def tree_stack(pytrees: PyTree, *, axis=0) -> PyTree:
