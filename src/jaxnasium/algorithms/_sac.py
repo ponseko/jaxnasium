@@ -327,6 +327,7 @@ class SAC(RLAlgorithm):
             def __sac_qnet_loss(params, batch: Transition):
                 q_out = jax.vmap(params)(batch.observation, batch.action)
                 q_taken = jym.tree.gather_actions(q_out, batch.action)
+                q_taken = jym.tree.batch_sum(q_taken)
                 q_loss = optax.losses.huber_loss(q_taken, q_target)
                 return jym.tree.mean(q_loss)
 
@@ -440,7 +441,7 @@ class SAC(RLAlgorithm):
             n_batch_axis=1,
         )
         updated_state, _ = jax.lax.scan(
-            update_critics, current_state, critic_train_batches, unroll=8
+            update_critics, current_state, critic_train_batches
         )
 
         # Update the actor and Alpha for each minibatch and epoch
@@ -451,7 +452,7 @@ class SAC(RLAlgorithm):
             n_batch_axis=1,
         )
         updated_state, _ = jax.lax.scan(
-            update_actor_and_alpha, updated_state, actor_train_batches, unroll=8
+            update_actor_and_alpha, updated_state, actor_train_batches
         )
 
         # Update target networks
