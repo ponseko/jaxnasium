@@ -327,6 +327,7 @@ class SAC(RLAlgorithm):
             def __sac_qnet_loss(params, batch: Transition):
                 q_out = jax.vmap(params)(batch.observation, batch.action)
                 q_taken = jym.tree.gather_actions(q_out, batch.action)
+                q_taken = jym.tree.batch_sum(q_taken)
                 q_loss = optax.losses.huber_loss(q_taken, q_target)
                 return jym.tree.mean(q_loss)
 
