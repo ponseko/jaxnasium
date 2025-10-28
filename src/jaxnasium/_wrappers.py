@@ -1,3 +1,4 @@
+import logging
 from copy import deepcopy
 from dataclasses import replace
 from typing import Any, Callable, Tuple
@@ -19,6 +20,8 @@ from ._environment import (
     TObservation,
 )
 from ._spaces import Discrete, MultiDiscrete, Space
+
+logger = logging.getLogger(__name__)
 
 
 def is_wrapped(wrapped_env: Environment, wrapper_class: type | str) -> bool:
@@ -682,6 +685,9 @@ class FlattenActionSpaceWrapper(Wrapper):
                     )
 
             combined_num_actions = int(np.prod(np.array(n_values)))
+            logger.info(
+                f"Flattened action space from: {spaces} to single space of {combined_num_actions} actions."
+            )
             return Discrete(combined_num_actions)
 
         if self.multi_agent:

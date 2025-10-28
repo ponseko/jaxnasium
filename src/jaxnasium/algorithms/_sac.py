@@ -441,7 +441,7 @@ class SAC(RLAlgorithm):
             n_batch_axis=1,
         )
         updated_state, _ = jax.lax.scan(
-            update_critics, current_state, critic_train_batches, unroll=8
+            update_critics, current_state, critic_train_batches
         )
 
         # Update the actor and Alpha for each minibatch and epoch
@@ -452,7 +452,7 @@ class SAC(RLAlgorithm):
             n_batch_axis=1,
         )
         updated_state, _ = jax.lax.scan(
-            update_actor_and_alpha, updated_state, actor_train_batches, unroll=8
+            update_actor_and_alpha, updated_state, actor_train_batches
         )
 
         # Update target networks
