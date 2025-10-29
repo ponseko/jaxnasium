@@ -238,11 +238,6 @@ class RLAlgorithm(eqx.Module):
                 "This likely leads to incorrect results. We recommend only using algorithm-side normalization, "
                 "as it allows for easier checkpointing and resuming training."
             )
-        if self.__class__.__name__ in ["PQN", "DQN"]:
-            if not isinstance(env.action_space, jym.Discrete):
-                raise ValueError(
-                    """PQN and DQN only support discrete action spaces. You can flatten MultiDiscrete and composite spaces with `jym.FlattenActionSpaceWrapper(env)`"""
-                )
         if vectorized and not is_wrapped(env, VecEnvWrapper):
             logger.info("Wrapping environment in VecEnvWrapper")
             env = VecEnvWrapper(env)

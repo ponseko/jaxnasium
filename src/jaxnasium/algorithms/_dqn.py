@@ -272,6 +272,7 @@ class DQN(RLAlgorithm):
         def __dqn_loss(params: QValueNetwork, train_batch: Transition):
             q_out_1 = jax.vmap(params)(train_batch.observation)
             q_taken = jym.tree.gather_actions(q_out_1, train_batch.action)
+            q_taken = jym.tree.batch_sum(q_taken)
             q_loss = optax.huber_loss(q_taken, target)
             return jym.tree.mean(q_loss)
 
@@ -287,10 +288,8 @@ class DQN(RLAlgorithm):
 
         # Compute target
         q_target_output = jax.vmap(current_state.critic_target)(batch.next_observation)
-        target = batch.reward + ~batch.terminated * self.gamma * jnp.max(
-            q_target_output,
-            axis=-1,  # assumes discrete actions (flatten multidiscrete spaces first)
-        )
+        q_target_output = jym.tree.batch_sum(jnp.max(q_target_output, axis=-1))
+        target = batch.reward + ~batch.terminated * self.gamma * q_target_output
 
         grads = __dqn_loss(current_state.critic, batch)
         updates, optimizer_state = self.optimizer.update(
