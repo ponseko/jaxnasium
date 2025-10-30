@@ -300,7 +300,7 @@ class ContinuousOutputNetwork(eqx.Module):
             logits = jax.vmap(lambda layer: layer(x))(stacked_layers)
 
         if self.distribution is None:
-            return logits
+            return logits.squeeze()
 
         mean = logits[..., 0]
         log_std = logits[..., 1]
