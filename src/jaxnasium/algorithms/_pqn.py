@@ -15,6 +15,7 @@ from jaxnasium import Environment
 from jaxnasium._environment import ORIGINAL_OBSERVATION_KEY
 from jaxnasium.algorithms import RLAlgorithm
 from jaxnasium.algorithms.utils import (
+    DistraxContainer,
     Normalizer,
     Transition,
     scan_callback,
@@ -51,7 +52,7 @@ class PQN(RLAlgorithm):
     num_minibatches: int = eqx.field(static=True, default=4)  # Number of mini-batches
     num_epochs: int = eqx.field(static=True, default=4)  # K epochs
 
-    normalize_observations: bool = eqx.field(static=True, default=False)
+    normalize_observations: bool = eqx.field(static=True, default=True)
     normalize_rewards: bool = eqx.field(static=True, default=False)
 
     @property
@@ -108,7 +109,9 @@ class PQN(RLAlgorithm):
             )
         observation = state.normalizer.normalize_obs(observation)
         q_values = state.critic(observation)
-        action_dist = distrax.EpsilonGreedy(q_values, epsilon=epsilon)
+        action_dist = DistraxContainer(
+            jax.tree.map(lambda x: distrax.EpsilonGreedy(x, epsilon=epsilon), q_values)
+        )
         return action_dist.sample(seed=key)
 
     def init_state(self, key: PRNGKeyArray, env: Environment) -> "PQN":
@@ -236,7 +239,8 @@ class PQN(RLAlgorithm):
             norm_next_obs = current_state.normalizer.normalize_obs(next_obs)
             norm_reward = current_state.normalizer.normalize_reward(batch.reward)
             next_q_values = jax.vmap(current_state.critic)(norm_next_obs)
-            next_q_values = jnp.max(next_q_values, axis=-1)
+            next_q_values = jax.tree.map(lambda q: jnp.max(q, axis=-1), next_q_values)
+            next_q_values = jym.tree.batch_sum(next_q_values)
 
             done = batch.terminated
             if done.ndim < norm_reward.ndim:
@@ -252,7 +256,9 @@ class PQN(RLAlgorithm):
         last_obs = current_state.normalizer.normalize_obs(
             jax.tree.map(lambda x: x[-1], trajectory_batch.next_observation)
         )
-        last_q_values = jax.vmap(current_state.critic)(last_obs).max(axis=-1)
+        last_q_values = jax.vmap(current_state.critic)(last_obs)
+        last_q_values = jax.tree.map(lambda q: jnp.max(q, axis=-1), last_q_values)
+        last_q_values = jym.tree.batch_sum(last_q_values)
         _, returns = jax.lax.scan(
             compute_q_lambda_scan,
             last_q_values.astype(jnp.float32),
@@ -278,6 +284,7 @@ class PQN(RLAlgorithm):
             def __dqn_loss(params: QValueNetwork, train_batch: Transition):
                 q_out_1 = jax.vmap(params)(train_batch.observation)
                 q_taken = jym.tree.gather_actions(q_out_1, train_batch.action)
+                q_taken = jym.tree.batch_sum(q_taken)
                 q_loss = optax.huber_loss(q_taken, minibatch.return_)
                 return jym.tree.mean(q_loss)
 
