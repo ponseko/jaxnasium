@@ -15,6 +15,7 @@ from jaxnasium import Environment
 from jaxnasium._environment import ORIGINAL_OBSERVATION_KEY
 from jaxnasium.algorithms import RLAlgorithm
 from jaxnasium.algorithms.utils import (
+    DistraxContainer,
     Normalizer,
     Transition,
     TransitionBuffer,
@@ -118,7 +119,9 @@ class DQN(RLAlgorithm):
             )
         observation = state.normalizer.normalize_obs(observation)
         q_values = state.critic(observation)
-        action_dist = distrax.EpsilonGreedy(q_values, epsilon=epsilon)
+        action_dist = DistraxContainer(
+            jax.tree.map(lambda x: distrax.EpsilonGreedy(x, epsilon=epsilon), q_values)
+        )
         return action_dist.sample(seed=key)
 
     def init_state(self, key: PRNGKeyArray, env: Environment) -> "DQN":
@@ -288,7 +291,9 @@ class DQN(RLAlgorithm):
 
         # Compute target
         q_target_output = jax.vmap(current_state.critic_target)(batch.next_observation)
-        q_target_output = jym.tree.batch_sum(jnp.max(q_target_output, axis=-1))
+        q_target_output = jym.tree.batch_sum(
+            jax.tree.map(lambda q: jnp.max(q, axis=-1), q_target_output)
+        )
         target = batch.reward + ~batch.terminated * self.gamma * q_target_output
 
         grads = __dqn_loss(current_state.critic, batch)
