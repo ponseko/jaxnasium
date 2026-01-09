@@ -5,6 +5,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import PRNGKeyArray
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ def create_batched_grid_search(
         vmap_grid = np.meshgrid(*vmap_args.values(), indexing="ij")
         vmap_args = {k: v.flatten() for k, v in zip(vmap_param_names, vmap_grid)}
 
-        # vmap args are now flattened and each param is of size (X,) for example (500,).
+        # vmap args are now flattened and each param is of size (X,), for example (500,).
         # We want to chunk these into chunks of size max_vmap_chunk_size.
         skip = 0
         chunks = []
@@ -165,3 +166,90 @@ def create_batched_grid_search(
     return vmapped_fn, pos_and_kw_fn_args
     # Usage:
     # vmapped_fn(pos_and_kw_fn_args[0])
+
+
+def create_batched_random_search(
+    fn: Callable,
+    *,
+    seed: PRNGKeyArray,
+    num_samples: int,
+    args: dict[str, list | tuple],
+    max_vmap_chunk_size: int | None = 5,
+):
+    assert args is not None and len(args) > 0, "args must be a non-empty dictionary"
+    assert num_samples > 0, "num_samples must be greater than 0"
+    assert max_vmap_chunk_size is None or max_vmap_chunk_size >= 0, (
+        "max_vmap_chunk_size must be None or non-negative"
+    )
+
+    sampled_args = {}
+    for k, v in args.items():
+        if (
+            isinstance(v, tuple)
+            and len(v) == 2
+            and all(isinstance(x, (int, float)) for x in v)
+        ):
+            low, high = v
+            if isinstance(low, int) and isinstance(high, int):
+                sampled_args[k] = jax.random.randint(
+                    seed, shape=(num_samples,), minval=low, maxval=high
+                ).tolist()
+            else:
+                sampled_args[k] = jax.random.uniform(
+                    seed, shape=(num_samples,), minval=low, maxval=high
+                ).tolist()
+        elif isinstance(v, list):
+            indices = jax.random.randint(
+                seed, shape=(num_samples,), minval=0, maxval=len(v)
+            )
+            sampled_args[k] = [v[i] for i in indices]
+        else:
+            raise ValueError(
+                f"arg values must be a list of possible values or a tuple of (low, high), got {v}"
+            )
+
+    if max_vmap_chunk_size is not None and max_vmap_chunk_size > 0:
+        try:
+
+            def chunk_dict_of_arrays(args_dict, max_chunk_size):
+                """Split a dict of arrays into a list of dicts with chunked arrays."""
+                total_size = len(next(iter(args_dict.values())))
+                chunks = []
+
+                for start_idx in range(0, total_size, max_chunk_size):
+                    end_idx = min(start_idx + max_chunk_size, total_size)
+                    chunk = {k: v[start_idx:end_idx] for k, v in args_dict.items()}
+                    chunks.append(chunk)
+
+                return chunks
+
+            sampled_args: dict = jax.tree.map(
+                lambda x: jnp.asarray(x),
+                sampled_args,
+                is_leaf=lambda x: x is not sampled_args,
+            )
+            sampled_arg_chunks = chunk_dict_of_arrays(sampled_args, max_vmap_chunk_size)
+
+            vmapped_fn = jax.vmap(
+                lambda arg: fn(
+                    **{k: v for k, v in zip(sampled_args.keys(), arg.values())}
+                )
+            )
+
+            return (vmapped_fn, sampled_arg_chunks)
+
+        except Exception as e:
+            raise ValueError(
+                f"max_vmap_chunk_size is set > 0, but all sampled args must be convertible to jnp arrays for chunking, got {sampled_args}"
+            ) from e
+
+    else:
+        # No chunking, just return the (original) function and sampled arguments as a list of dicts
+        list_sampled_args = [
+            {
+                **{k: sampled_args[k][i] for k in sampled_args.keys()},
+            }
+            for i in range(num_samples)
+        ]
+
+    return (fn, list_sampled_args)
