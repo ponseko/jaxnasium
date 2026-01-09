@@ -9,7 +9,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def create_batched_grid_search_search(
+def create_batched_grid_search(
     fn: Callable,
     *,
     vmap_args: dict[str, list | tuple | np.ndarray | jnp.ndarray] | None = None,
@@ -49,7 +49,7 @@ def create_batched_grid_search_search(
     ...     # Your training logic here
     ...     return trained_model
 
-    >>> vmapped_fn, argument_batches = create_batched_grid_search_search(
+    >>> vmapped_fn, argument_batches = create_batched_grid_search(
     ...     train_model,
     ...     vmap_args={"learning_rate": np.linspace(0.001, 0.003, 10)},
     ...     static_args={"batch_size": [32, 64], "epochs": [10, 20, 50]}
