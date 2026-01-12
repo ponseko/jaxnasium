@@ -174,7 +174,7 @@ def create_batched_random_search(
     seed: PRNGKeyArray,
     num_samples: int,
     args: dict[str, list | tuple],
-    max_vmap_chunk_size: int | None = 5,
+    max_vmap_chunk_size: int | None = None,
 ):
     assert args is not None and len(args) > 0, "args must be a non-empty dictionary"
     assert num_samples > 0, "num_samples must be greater than 0"
