@@ -184,6 +184,7 @@ def create_batched_random_search(
 
     sampled_args = {}
     for k, v in args.items():
+        seed, _ = jax.random.split(seed)
         if (
             isinstance(v, tuple)
             and len(v) == 2
