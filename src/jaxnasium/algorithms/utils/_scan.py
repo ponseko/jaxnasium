@@ -41,8 +41,8 @@ def scan_transitions(
     assert num_epochs >= 1, "num_epochs must be at least 1"
     assert num_minibatches >= 1, "num_minibatches must be at least 1"
     if num_epochs == 1 and num_minibatches == 1:
-        # Fallback to standard scan if no epochs or minibatches
-        return jax.lax.scan(f, init, xs, reverse=reverse, unroll=unroll)
+        # Fallback to standard fn call if no epochs or minibatches
+        return f(init, xs)
 
     assert key is not None, (
         "A PRNG key must be provided when using epochs or minibatches."
@@ -58,6 +58,9 @@ def scan_transitions(
         return jax.lax.scan(
             do_minibatch, carry, minibatches, reverse=reverse, unroll=unroll
         )
+
+    if num_epochs == 1:
+        return do_epoch(init, key)
 
     keys = jax.random.split(key, num_epochs)
     return jax.lax.scan(do_epoch, init, keys, reverse=reverse, unroll=unroll)
