@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "create-rl-app>=0.0.2",
     "equinox>=0.12.1",
-    "jax>=0.5.2,<0.7.0",
+    "jax>=0.5.2,!=0.7.0,!=0.7.1",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +19,7 @@ algs = [
     "optax>=0.2.4",
 ]
 gpu = [
-    "jax[cuda]>=0.5.2,<0.7.0"
+    "jax[cuda]>=0.5.2,!=0.7.0,!=0.7.1"
 ]
 
 [build-system]
