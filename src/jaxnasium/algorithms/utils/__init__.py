@@ -16,4 +16,5 @@ from ._normalization import (
     Normalizer as Normalizer,
     RunningStatisticsState as RunningStatisticsState,
 )
+from ._scan import scan_transitions as scan_transitions
 from ._transition import Transition as Transition

@@ -1,9 +1,12 @@
+import logging
 from typing import Optional
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, PRNGKeyArray, PyTree, PyTreeDef
+
+logger = logging.getLogger(__name__)
 
 
 class Transition(eqx.Module):
@@ -146,6 +149,9 @@ class Transition(eqx.Module):
         If n_epochs > 1, it will create n_epochs copies of the minibatches. and stack these
         such that there is a single leading axis to scan over for training.
 
+        If the batch size is not divisible by the number of minibatches, the remainder is
+        truncated so that each minibatch has the same size.
+
         **Arguments:**
         - `key`: JAX PRNG key for randomization.
         - `num_minibatches`: Number of minibatches to create.
@@ -159,6 +165,9 @@ class Transition(eqx.Module):
             # Random permutation of the batch indices
             batch_idx = jax.random.permutation(key, batch_size)
 
+            # Drop remainder so each minibatch has equal size
+            batch_idx = batch_idx[:effective_batch_size]
+
             # take from the batch in a new order (the order of the randomized batch_idx)
             shuffled_batch = jax.tree.map(
                 lambda x: jnp.take(x, batch_idx, axis=0), batch
@@ -166,13 +175,21 @@ class Transition(eqx.Module):
 
             # split in minibatches
             minibatches = jax.tree.map(
-                lambda x: x.reshape((n_minibatches, -1) + x.shape[1:]), shuffled_batch
+                lambda x: x.reshape((n_minibatches, minibatch_size) + x.shape[1:]),
+                shuffled_batch,
             )
             return rng, minibatches
 
         # reshape (flatten over all batch axes)
         batch = jax.tree.map(lambda x: x.reshape((-1,) + x.shape[n_batch_axis:]), self)
         batch_size = jax.tree.leaves(batch)[0].shape[0]
+        minibatch_size = batch_size // n_minibatches
+        effective_batch_size = minibatch_size * n_minibatches
+        if batch_size != effective_batch_size:
+            logger.warning(
+                f"Batch size {batch_size} is not divisible by number of minibatches {n_minibatches}. "
+                f"Dropping {batch_size - effective_batch_size} samples to make equal sized minibatches."
+            )
 
         # Create n_epochs of minibatches
         rng, minibatches = jax.lax.scan(create_minibatch, key, None, n_epochs)
