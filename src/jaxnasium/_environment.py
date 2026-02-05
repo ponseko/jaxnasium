@@ -15,6 +15,19 @@ TObservation = TypeVar("TObservation")
 TEnvState = TypeVar("TEnvState")
 
 
+class EnvState(eqx.Module):
+    """A simple container for the state of an environment.
+    Defined as an Equinox Module (a PyTree registered dataclass) with a helper method for replacing fields.
+
+    It is not required to use this class for the state of an environment."""
+
+    def _replace(self, **updates):
+        keys, values = zip(*updates.items())
+        return eqx.tree_at(
+            lambda module: [module.__dict__[key] for key in keys], self, values
+        )
+
+
 class Environment(eqx.Module, Generic[TEnvState]):
     """
     Base environment class for JAX-compatible environments. Create your environment by subclassing this.
@@ -200,7 +213,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         return False
 
     @property
-    def agent_structure(self) -> PyTreeDef:
+    def agent_structure(self) -> PyTreeDef:  # pyright: ignore[reportInvalidTypeForm]
         """
         Returns the structure of the agent space. In single-agent environments this is
         simply a PyTreeDef(*).

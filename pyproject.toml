@@ -1,6 +1,6 @@
 [project]
 name = "jaxnasium"
-version = "0.0.27"
+version = "0.0.28"
 description = "A lightweight utility library for reinforcement learning projects in JAX and Equinox."
 readme = "README.md"
 authors = [
