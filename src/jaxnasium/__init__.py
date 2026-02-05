@@ -3,7 +3,11 @@ from importlib.metadata import version
 __version__ = version("jaxnasium")
 from jaxnasium import _registry, envs as envs, tree as tree
 
-from ._environment import Environment as Environment, TimeStep as TimeStep
+from ._environment import (
+    Environment as Environment,
+    EnvState as EnvState,
+    TimeStep as TimeStep,
+)
 from ._spaces import (
     Box as Box,
     Discrete as Discrete,
