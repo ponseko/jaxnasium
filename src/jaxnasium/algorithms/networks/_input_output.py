@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, List, Literal, Tuple
+from typing import Any, Callable, List, Literal, Tuple
 
 import distrax
 import equinox as eqx
@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
-from jaxtyping import PRNGKeyArray, PyTree, PyTreeDef
+from jaxtyping import PRNGKeyArray, PyTree
 
 import jaxnasium as jym
 import jaxnasium.tree
@@ -16,6 +16,11 @@ from jaxnasium.algorithms.utils import TanhNormalFactory
 from ._architectures import CNN, Identity
 
 logger = logging.getLogger(__name__)
+
+
+def _is_callable_module(x) -> bool:
+    """Check if x is a callable eqx.Module."""
+    return isinstance(x, eqx.Module) and callable(x)
 
 
 class AutoAgentObservationNet(eqx.Module):
@@ -32,7 +37,7 @@ class AutoAgentObservationNet(eqx.Module):
     networks: PyTree[eqx.Module]
 
     num_observation_spaces: int = eqx.field(static=True)
-    input_structure: PyTreeDef = eqx.field(static=True)
+    input_structure: Any = eqx.field(static=True)
     out_features: int = eqx.field(static=True)
 
     def __init__(self, key: PRNGKeyArray, obs_space: PyTree[jym.Space], **kwargs):
@@ -66,7 +71,7 @@ class AutoAgentObservationNet(eqx.Module):
             lambda layer, x: layer(x),
             self.networks,
             x,
-            is_leaf=lambda x: isinstance(x, eqx.Module),
+            is_leaf=_is_callable_module,
         )
         return jaxnasium.tree.concatenate(outputs)
 
@@ -162,14 +167,14 @@ class AutoAgentOutputNet(eqx.Module):
             action_mask = jax.tree.map(
                 lambda _: None,
                 self.networks,
-                is_leaf=lambda x: isinstance(x, eqx.Module),
+                is_leaf=_is_callable_module,
             )
 
         return jax.tree.map(
             lambda layer, mask: layer(x, mask),
             self.networks,
             action_mask,
-            is_leaf=lambda x: isinstance(x, eqx.Module),
+            is_leaf=_is_callable_module,
         )
 
 
