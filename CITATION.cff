@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Ponse"
   given-names: "Koen"
-title: "Jaxnasium: Utilities for Accessible Reinforcement Learning in JAX"
+title: "Jaxnasium: A Lightweight Utility Library for JAX-based RL Projects"
 version: 0.0.27
-date-released: 2025
+year: 2025
 url: "http://github.com/ponseko/jaxnasium"
