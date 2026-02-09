@@ -8,16 +8,17 @@ import jax.numpy as jnp
 from jaxtyping import PyTree
 
 
-def _result_tuple_to_tuple_result(r):
+def _transpose_tree_of_tuples(r, outer_treedef):
     """
     Some functions may return tuples. Rather than returning
-    a pytree of tuples, we convert it to a tuple of pytrees.
+    a pytree of tuples, we convert it to a tuple of pytrees
+    using jax.tree.transpose.
     """
-    one_level_leaves, structure = eqx.tree_flatten_one_level(r)
-    if isinstance(one_level_leaves[0], tuple):
-        tupled = tuple([list(x) for x in zip(*one_level_leaves)])
-        r = tuple(jax.tree.unflatten(structure, leaves) for leaves in tupled)
-    return r
+    flat = outer_treedef.flatten_up_to(r)
+    if not flat or not isinstance(flat[0], tuple):
+        return r
+    inner_treedef = jax.tree.structure(tuple(range(len(flat[0]))))
+    return jax.tree.transpose(outer_treedef, inner_treedef, r)
 
 
 class DistraxContainer(eqx.Module):
@@ -42,12 +43,16 @@ class DistraxContainer(eqx.Module):
 
         # If callable, return a method that calls the attribute on each distribution
         def method_caller(*args, **kwargs):
+            outer_treedef = jax.tree.structure(
+                self.distribution,
+                is_leaf=lambda x: isinstance(x, distrax.Distribution),
+            )
             res = jax.tree.map(
                 lambda dist: getattr(dist, name)(*args, **kwargs),
                 self.distribution,
                 is_leaf=lambda x: isinstance(x, distrax.Distribution),
             )
-            return _result_tuple_to_tuple_result(res)
+            return _transpose_tree_of_tuples(res, outer_treedef)
 
         return method_caller
 
@@ -82,7 +87,7 @@ class DistraxContainer(eqx.Module):
             seeds,
             is_leaf=lambda x: isinstance(x, distrax.Distribution),
         )
-        return _result_tuple_to_tuple_result(res)
+        return _transpose_tree_of_tuples(res, structure)
 
     def log_prob(self, value):
         if isinstance(self.distribution, distrax.Distribution):
