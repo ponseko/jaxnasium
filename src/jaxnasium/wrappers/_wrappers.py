@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import replace
-from functools import partial
+from functools import partial, reduce
 from typing import Any, Literal, overload
 
 import equinox as eqx
@@ -221,7 +221,7 @@ class LogWrapper(Wrapper):
         assert jax.tree.structure(terminated) == jax.tree.structure(truncated)
 
         done = jax.tree.map(jnp.logical_or, terminated, truncated)
-        done = jnp.all(jnp.array(jax.tree.leaves(done)))  # jax.tree.all does not work
+        done = reduce(jnp.logical_and, jax.tree.leaves(done))
 
         new_episode_return = jym.tree.add(state.episode_returns, timestep.reward)
         new_episode_length = jym.tree.add(state.episode_lengths, 1)
