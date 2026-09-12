@@ -113,9 +113,12 @@ class RLAlgorithm(eqx.Module):
             obs, env_state = env.reset(reset_key)
             done = False
 
-            # get reward structure
-            timestep, _ = env.step(reset_key, env_state, env.sample_action(reset_key))
-            episode_reward = jym.tree.zeros_like(timestep.reward, dtype=float)
+            reward_structure = jax.eval_shape(
+                lambda s, a: env.step(reset_key, s, a)[0].reward,
+                env_state,
+                env.sample_action(reset_key),
+            )
+            episode_reward = jym.tree.zeros_like(reward_structure, dtype=float)
 
             episode_reward, key, obs, env_state, done = jax.lax.while_loop(
                 lambda carry: jnp.logical_not(carry[-1]),
