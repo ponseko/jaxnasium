@@ -76,13 +76,48 @@ class Box(Space):
             object.__setattr__(self, "shape", (self.shape,))
 
     def sample(self, rng: PRNGKeyArray) -> Array:
-        """Sample random action uniformly from set of continuous choices."""
+        """Sample a random element of the space.
+
+        As is the case in Gymnasium, floating dtypes are sampled differently based
+        on the bounds of this space.
+        If fully bounded, we sample uniformly, unbounded spaces are sampled with a gaussian,
+        and spaces bounded from below or above are sampled from '`low` + exponential' or
+        '`high` - exponential' respectively
+        """
         low = self.low
         high = self.high
         if jnp.isdtype(self.dtype, "real floating"):
-            return jax.random.uniform(
-                rng, shape=self.shape, minval=low, maxval=high, dtype=self.dtype
+            low = jnp.broadcast_to(jnp.asarray(low, self.dtype), self.shape)
+            high = jnp.broadcast_to(jnp.asarray(high, self.dtype), self.shape)
+
+            bounded_below = low > jnp.finfo(self.dtype).min
+            bounded_above = high < jnp.finfo(self.dtype).max
+            fully_bounded = bounded_below & bounded_above
+
+            uniform_key, exp_key, normal_key = jax.random.split(rng, 3)
+            uniform = jax.random.uniform(
+                uniform_key,
+                shape=self.shape,
+                minval=jnp.where(fully_bounded, low, 0.0),
+                maxval=jnp.where(fully_bounded, high, 1.0),
+                dtype=self.dtype,
             )
+            exponential = jax.random.exponential(exp_key, self.shape, self.dtype)
+            normal = jax.random.normal(normal_key, self.shape, self.dtype)
+
+            return jnp.select(
+                [
+                    fully_bounded,
+                    bounded_below,
+                    bounded_above,
+                ],
+                [
+                    uniform,
+                    jnp.where(bounded_below, low, 0.0) + exponential,
+                    jnp.where(bounded_above, high, 0.0) - exponential,
+                ],
+                default=normal,
+            ).astype(self.dtype)
         if jnp.isdtype(self.dtype, "bool"):
             return jax.random.bernoulli(rng, 0.5, shape=self.shape)
         return jax.random.randint(
