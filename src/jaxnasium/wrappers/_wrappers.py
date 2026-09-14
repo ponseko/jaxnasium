@@ -444,6 +444,11 @@ class NormalizeVecRewardWrapper(Wrapper):
         return TimeStep(obs, reward, terminated, truncated, info), state
 
 
+def _flatten(x: Array) -> Array:
+    """Flattens or leaves unchaged if a scalar"""
+    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
+
+
 class FlattenObservationWrapper(Wrapper):
     """Flatten the observations of the environment.
 
@@ -459,7 +464,7 @@ class FlattenObservationWrapper(Wrapper):
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, env_state = self._env.reset(key)
         obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
-        obs = jax.tree.map(lambda x: jnp.reshape(x, -1), obs)
+        obs = jax.tree.map(_flatten, obs)
         obs = eqx.combine(obs, masks)
         return obs, env_state
 
@@ -470,7 +475,7 @@ class FlattenObservationWrapper(Wrapper):
         obs, masks = partition_obs_and_masks(
             timestep.observation, self._env.multi_agent
         )
-        obs = jax.tree.map(lambda x: jnp.reshape(x, -1), obs)
+        obs = jax.tree.map(_flatten, obs)
         obs = eqx.combine(obs, masks)
         timestep = timestep._replace(observation=obs)
         try:
@@ -479,7 +484,7 @@ class FlattenObservationWrapper(Wrapper):
             terminal_obs, terminal_masks = partition_obs_and_masks(
                 info[ORIGINAL_OBSERVATION_KEY], self._env.multi_agent
             )
-            terminal_obs = jax.tree.map(lambda x: jnp.reshape(x, -1), terminal_obs)
+            terminal_obs = jax.tree.map(_flatten, terminal_obs)
             info[ORIGINAL_OBSERVATION_KEY] = eqx.combine(terminal_obs, terminal_masks)
             timestep = timestep._replace(info=info)
         except Exception:
