@@ -7,7 +7,7 @@ import numpy as np
 from jax.experimental import io_callback
 from jaxtyping import Array, Int, PRNGKeyArray, PyTree, Real
 
-from jaxnasium._environment import ORIGINAL_OBSERVATION_KEY, TimeStep, TObservation
+from jaxnasium._environment import ORIGINAL_OBSERVATION_KEY, Observation, TimeStep
 from jaxnasium._spaces import Space
 
 from ._util import gymnasium_to_jaxnasium_space
@@ -255,7 +255,7 @@ class GymnasiumWrapper(Wrapper):
             "key per environment"
         )
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, Int[Array, " num_envs"]]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, Int[Array, " num_envs"]]:
         if self.is_vectorized:
             self._require_env_keys(key, "reset")
             seeds = jax.vmap(lambda k: jax.random.randint(k, (), 0, _SEED_MAX))(key)
@@ -299,13 +299,13 @@ class GymnasiumWrapper(Wrapper):
         self._require_env_keys(key, "sample_action")
         return jax.vmap(super().sample_action)(key)
 
-    def sample_observation(self, key: PRNGKeyArray) -> TObservation:  # pyright: ignore[reportInvalidTypeVarUse]
+    def sample_observation(self, key: PRNGKeyArray) -> Observation:
         if not self.is_vectorized:
             return super().sample_observation(key)
         self._require_env_keys(key, "sample_observation")
         return jax.vmap(super().sample_observation)(key)
 
-    def reset_env(self, key: PRNGKeyArray) -> tuple[TObservation, Any]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Observation, Any]:
         return self.reset(key)
 
     def step_env(

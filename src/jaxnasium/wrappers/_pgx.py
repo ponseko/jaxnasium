@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import PRNGKeyArray
 
-from jaxnasium._environment import TEnvState, TimeStep, TObservation
+from jaxnasium._environment import Observation, TEnvState, TimeStep
 from jaxnasium._spaces import Box, Discrete
 from jaxnasium._types import AgentObservation
 
@@ -25,14 +25,14 @@ class PgxWrapper(Wrapper):
     _env: Any
     self_play: bool = eqx.field(static=True, default=False)
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         state = self._env.init(key)
         observation = state.observation
         action_mask = state.legal_action_mask
         obs = AgentObservation(observation, action_mask)
         if self.multi_agent:
             obs = (obs,) * self._env.num_players
-        return obs, state  # pyright: ignore
+        return obs, state
 
     def step(
         self, key: PRNGKeyArray, state: Any, action: tuple[int | float] | float

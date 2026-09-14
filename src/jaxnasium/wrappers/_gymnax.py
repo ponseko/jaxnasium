@@ -4,7 +4,7 @@ import equinox as eqx
 import jax
 from jaxtyping import PRNGKeyArray
 
-from jaxnasium._environment import TEnvState, TimeStep, TObservation
+from jaxnasium._environment import Observation, TEnvState, TimeStep
 from jaxnasium._spaces import Space
 
 from ._util import gymnasium_to_jaxnasium_space
@@ -26,7 +26,7 @@ class GymnaxWrapper(Wrapper):
     _env: Any
     handle_truncation: bool = True
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         params = getattr(self._env, "default_params", None)
         obs, env_state = self._env.reset(key, params)
         return obs, env_state

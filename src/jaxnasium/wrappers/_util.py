@@ -5,7 +5,7 @@ import equinox as eqx
 import jax
 from jaxtyping import PyTree
 
-from jaxnasium._environment import TObservation
+from jaxnasium._environment import Observation
 from jaxnasium._spaces import Box, Discrete, MultiDiscrete, Space
 from jaxnasium._types import AgentObservation
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def partition_obs_and_masks(
-    observation_tree: PyTree[TObservation], multi_agent: bool
+    observation_tree: PyTree[Observation], multi_agent: bool
 ) -> tuple[PyTree, PyTree]:
     """
     Seperates a PyTree of observations of type `AgentObservation` into two trees:

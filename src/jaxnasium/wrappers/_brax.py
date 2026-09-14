@@ -4,10 +4,7 @@ import equinox as eqx
 import jax
 from jaxtyping import PRNGKeyArray
 
-from jaxnasium._environment import (
-    TimeStep,
-    TObservation,
-)
+from jaxnasium._environment import Observation, TimeStep
 
 from ._util import gymnasium_to_jaxnasium_space
 from ._wrappers import Wrapper
@@ -34,7 +31,7 @@ class BraxWrapper(Wrapper):
     _env: Any
     max_episode_steps: int = 1000  # Brax defaults to 1000
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, BraxWrapperState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, BraxWrapperState]:
         env_state = self._env.reset(key)
         env_state = BraxWrapperState(brax_env_state=env_state, timestep=0)
         return env_state.brax_env_state.obs, env_state

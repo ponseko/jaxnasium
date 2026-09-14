@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar
 
 import equinox as eqx
 import jax
@@ -11,8 +11,8 @@ from ._types import TimeStep
 
 ORIGINAL_OBSERVATION_KEY = "_TERMINAL_OBSERVATION"
 
-TObservation = TypeVar("TObservation")
-TEnvState = TypeVar("TEnvState")
+Observation: TypeAlias = PyTree[Any]
+TEnvState = TypeVar("TEnvState", default=Any)
 
 
 class EnvState(eqx.Module):
@@ -65,7 +65,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         timestep, state = self.auto_reset(key, timestep_step, state_step)
         return timestep, state
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         """
         Resets the environment to an initial state and returns the initial observation.
         Environment-specific logic is defined in the `reset_env` method. Typically, this function
@@ -98,7 +98,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         """
 
     @abstractmethod
-    def reset_env(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         """
         Defines the environment-specific reset logic.
 
@@ -176,7 +176,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         keys = jax.tree.unflatten(structure, keys)
         return jax.tree.map(lambda space, k: space.sample(k), self.action_space, keys)
 
-    def sample_observation(self, key: PRNGKeyArray) -> TObservation:  # pyright: ignore[reportInvalidTypeVarUse]
+    def sample_observation(self, key: PRNGKeyArray) -> Observation:
         """
         Convenience method to sample a random observation from the environment's observation space.
         While one could use `self.observation_space.sample(key)`, this method additionally works

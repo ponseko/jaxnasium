@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import PRNGKeyArray
 
-from jaxnasium._environment import TEnvState, TimeStep, TObservation
+from jaxnasium._environment import Observation, TEnvState, TimeStep
 from jaxnasium._spaces import Box, Discrete
 
 from ._wrappers import Wrapper
@@ -23,7 +23,7 @@ class xMinigridWrapper(Wrapper):
     _env: Any
     _params: Any
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         timestep_xminigrid = self._env.reset(self._params, key)
         return timestep_xminigrid.observation, timestep_xminigrid
 
