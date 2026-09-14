@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import Any, Generic, TypeAlias
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, PRNGKeyArray, PyTree, PyTreeDef, Real
+from typing_extensions import TypeVar
 
 from ._spaces import Space
 from ._types import TimeStep

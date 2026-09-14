@@ -113,7 +113,7 @@ class _CallbackEnv:
         terminal = jax.tree.map(lambda x: np.array(x, copy=True), obs)
         for i in np.flatnonzero(mask):
             jax.tree.map(
-                lambda dst, src: dst.__setitem__(i, src), terminal, final_obs[i]
+                lambda dst, src, _i=i: dst.__setitem__(_i, src), terminal, final_obs[i]
             )
         return terminal
 
