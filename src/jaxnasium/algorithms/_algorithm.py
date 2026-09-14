@@ -94,6 +94,13 @@ class RLAlgorithm(eqx.Module):
             # Cannot vectorize because terminations may occur at different times
             # use jax.vmap(agent.evaluate) if you can ensure episodes are of equal length
             env = unwrap_to(env, VecEnvWrapper)
+        elif is_wrapped(env, "GymnasiumWrapper") and (
+            getattr(env, "_internal_num_envs", None) is not None
+        ):
+            raise ValueError(
+                "Cannot evaluate on a vectorized GymnasiumWrapper. Please recreate the "
+                "environment without the `VectorEnv` wrapper for evaluation."
+            )
 
         def eval_episode(key, _) -> tuple[PRNGKeyArray, PyTree[float]]:
             def step_env(carry):
@@ -201,7 +208,21 @@ class RLAlgorithm(eqx.Module):
                 env = LogWrapper(env)
 
         if vectorized and not is_wrapped(env, VecEnvWrapper):
-            env = VecEnvWrapper(env)
+            if is_wrapped(env, "GymnasiumWrapper"):
+                num_envs = getattr(self, "num_envs", None)
+                env_num_envs = getattr(env, "_internal_num_envs", None)
+                if env_num_envs is None:
+                    raise ValueError(
+                        f"Gymnasium envs have to be vectorized on the Gymnasium side for training."
+                        f" Wrap it using a `gymnasium.vector.VectorEnv` of {num_envs} environments."
+                    )
+                if env_num_envs != num_envs:
+                    raise ValueError(
+                        f"{type(self).__name__} is configured with num_envs={num_envs}, "
+                        f"but the environment provides a batch of {env_num_envs}. "
+                    )
+            else:
+                env = VecEnvWrapper(env)
 
         return env
 

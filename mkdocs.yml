@@ -65,6 +65,7 @@ nav:
     - 'api/Spaces.md'
     - 'api/Wrappers.md'
     - 'api/Available-Environments.md'
+    - 'gymnasium.md'
 
   - Algorithms:
     - 'algorithms/Algorithms.md'
@@ -75,6 +76,7 @@ nav:
       - 'algorithms/networks/Architectures.md'
       - 'algorithms/networks/Layers.md'
       - 'algorithms/networks/examples.md'
+      - 'algorithms/networks/flax.md'
     - Core:
       - 'algorithms/core/Transitions.md'
       - 'algorithms/core/Replay-Buffer.md'

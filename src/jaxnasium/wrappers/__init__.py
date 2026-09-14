@@ -1,4 +1,5 @@
 from ._brax import BraxWrapper as BraxWrapper
+from ._gymnasium_cpu import GymnasiumWrapper as GymnasiumWrapper
 from ._gymnax import GymnaxWrapper as GymnaxWrapper
 from ._jaxmarl import JaxMARLWrapper as JaxMARLWrapper
 from ._jumanji import JumanjiWrapper as JumanjiWrapper

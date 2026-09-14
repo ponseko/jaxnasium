@@ -148,6 +148,20 @@ class VecEnvWrapper(Wrapper):
     environment, e.g. `NormalizeVecObsWrapper` and `NormalizeVecRewardWrapper`.
     """
 
+    def __check_init__(self):
+        if is_wrapped(self._env, "GymnasiumWrapper"):
+            n = getattr(self._env, "_internal_num_envs", None)
+            if n is not None:
+                raise ValueError(
+                    f"GymnasiumWrapper is already vectorized (num_envs={n}): "
+                    "do not wrap it in a VecEnvWrapper."
+                )
+            raise ValueError(
+                "GymnasiumWrapper cannot be vectorized with a VecEnvWrapper "
+                "(its step callback is not vmappable). Vectorize on the "
+                "Gymnasium side with a gymnasium.vector.VectorEnv."
+            )
+
     def reset(self, key: PRNGKeyArray) -> tuple[TObservation, Any]:  # pyright: ignore[reportInvalidTypeVarUse]
         obs, state = jax.vmap(self._env.reset)(key)
         return obs, state
@@ -597,12 +611,14 @@ class DiscreteActionWrapper(Wrapper):
 
 
 class MetaParamsWrapper(Wrapper):
+    """Adds params as to the `step` and `reset` signature similar to Gymnax"""
+
     def reset(self, key, params: dict):  # pyright: ignore[reportIncompatibleMethodOverride]
         env = self._env
         for k, value in params.items():
             if not hasattr(self._env, k):
                 raise ValueError(
-                    f"Trying to map over {k}, but environment {k} not found in {self._env}."
+                    f"Trying to set {k}, but {k} not found in {type(self._env).__name__}."
                 )
             env = eqx.tree_at(lambda env, _k=k: getattr(env, _k), env, value)
         return env.reset(key)
@@ -612,7 +628,7 @@ class MetaParamsWrapper(Wrapper):
         for k, value in params.items():
             if not hasattr(self._env, k):
                 raise ValueError(
-                    f"Trying to map over {k}, but environment {k} not found in {self._env}."
+                    f"Trying to set {k}, but {k} not found in {type(self._env).__name__}."
                 )
             env = eqx.tree_at(lambda env, _k=k: getattr(env, _k), env, value)
         return env.step(key, state, action)
