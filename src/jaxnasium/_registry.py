@@ -124,6 +124,14 @@ class Registry:
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)
                 return env  # type: ignore
+            elif package == "popjym":
+                # Popgym uses the gymnax api (< version 1)
+                import popjym  # type: ignore
+
+                env, _ = popjym.make(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, GymnaxWrapper)
+                return env  # type: ignore
             elif package == "jumanji":
                 import jumanji  # type: ignore
 
@@ -566,3 +574,48 @@ registry.register_alias("Craftax-Pixels-v1", "craftax:Craftax-Pixels-v1")
 # registry.register_alias(
 #     "Craftax-Pixels-AutoReset-v1", "craftax:Craftax-Pixels-AutoReset-v1"
 # )
+
+# PopJym envs (POPGym in JAX). These are partially observable.
+for _popjym_id in (
+    "NoisyStatelessMetaCartPole",
+    "AutoencodeEasy",
+    "AutoencodeMedium",
+    "AutoencodeHard",
+    "BattleshipEasy",
+    "BattleshipMedium",
+    "BattleshipHard",
+    "ConcentrationEasy",
+    "ConcentrationMedium",
+    "ConcentrationHard",
+    "CountRecallEasy",
+    "CountRecallMedium",
+    "CountRecallHard",
+    "HigherLowerEasy",
+    "HigherLowerMedium",
+    "HigherLowerHard",
+    "MinesweeperEasy",
+    "MinesweeperMedium",
+    "MinesweeperHard",
+    "MultiArmedBanditEasy",
+    "MultiArmedBanditMedium",
+    "MultiArmedBanditHard",
+    "StatelessCartPoleEasy",
+    "StatelessCartPoleMedium",
+    "StatelessCartPoleHard",
+    "NoisyStatelessCartPoleEasy",
+    "NoisyStatelessCartPoleMedium",
+    "NoisyStatelessCartPoleHard",
+    "StatelessPendulumEasy",
+    "StatelessPendulumMedium",
+    "StatelessPendulumHard",
+    "NoisyStatelessPendulumEasy",
+    "NoisyStatelessPendulumMedium",
+    "NoisyStatelessPendulumHard",
+    "RepeatFirstEasy",
+    "RepeatFirstMedium",
+    "RepeatFirstHard",
+    "RepeatPreviousEasy",
+    "RepeatPreviousMedium",
+    "RepeatPreviousHard",
+):
+    registry.register_alias(f"{_popjym_id}", f"popjym:{_popjym_id}")

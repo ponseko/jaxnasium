@@ -10,7 +10,7 @@
 Jaxnasium is not an environment suite, and not a framework that locks you in. Rather, it is your one-stop shop for your JAX RL code: a single environment API that existing suites are wrapped into, a set of general algorithms you can either import or copy into your project, and the
 tooling to train, evaluate and sweep them.
 
-1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Pgx, JaxMARL, xMinigrid, Navix or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
+1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Pgx, JaxMARL, xMinigrid, Navix, PopJym or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
 2. 🤖 **Readable cross-suite algorithms.** Various algorithms that can operate on any of those environments in near-single-file philosophy, built in [Equinox](https://github.com/patrick-kidger/equinox) with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3)-like API and end-to-end JIT training in the spirit of [PureJaxRL](https://github.com/luchris429/purejaxrl).
 3. 👥 **Multi-agent for free.** Single-agent algorithm code transparently upgrades to multi-agent environments through PyTrees and function transformations.
 4. 📊 **Sweeps and evaluation.** Grid, random, Sobol and one-at-a-time searches over many seeds, locally or across a Slurm job array.
