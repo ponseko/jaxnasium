@@ -5,10 +5,10 @@ import pytest
 
 import jaxnasium as jym
 from jaxnasium.algorithms import PPO
+from jaxnasium.wrappers import GymnasiumWrapper
 
 gymnasium = pytest.importorskip("gymnasium")
 
-from jaxnasium.wrappers._gymnasium_cpu import GymnasiumWrapper  # noqa: E402
 
 NUM_ENVS = 2
 SEED = jax.random.PRNGKey(0)
@@ -31,7 +31,7 @@ def _rollout(env: GymnasiumWrapper, length: int = 30):
     """A full rollout under jit, as an algorithm would run it."""
 
     def env_step(carry, _):
-        key, obs, state = carry
+        key, _obs, state = carry
         key, action_key, step_key = jax.random.split(key, 3)
         action = env.sample_action(jax.random.split(action_key, env._internal_num_envs))  # type: ignore[reportOptionalMemberAccess]
         timestep, state = env.step(
@@ -111,7 +111,7 @@ def test_plain_environment():
     assert not env.is_vectorized
 
     def env_step(carry, _):
-        key, obs, state = carry
+        key, _obs, state = carry
         key, action_key, step_key = jax.random.split(key, 3)
         timestep, state = env.step(step_key, state, env.sample_action(action_key))
         return (key, timestep.observation, state), timestep
