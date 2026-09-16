@@ -8,9 +8,9 @@ from jaxtyping import PRNGKeyArray
 
 from jaxnasium._environment import (
     ORIGINAL_OBSERVATION_KEY,
+    Observation,
     TEnvState,
     TimeStep,
-    TObservation,
 )
 from jaxnasium._spaces import Discrete, MultiDiscrete
 from jaxnasium._types import AgentObservation
@@ -35,7 +35,7 @@ class JumanjiWrapper(Wrapper):
 
         self._env = AutoResetWrapper(env, next_obs_in_extras=True)
 
-    def _convert_jumanji_obs(self, obs: Any) -> TObservation:  # pyright: ignore[reportInvalidTypeVarUse]
+    def _convert_jumanji_obs(self, obs: Any) -> Observation:
         def convert_jumanji_obs_to_dict(obs: Any) -> Any:
             """Recursively convert Jumanji observations to regular dicts."""
             if isinstance(obs, tuple) and hasattr(obs, "_asdict"):  # NamedTuple
@@ -62,7 +62,7 @@ class JumanjiWrapper(Wrapper):
                 obs = AgentObservation(observation=obs, action_mask=action_mask)
         return obs  # type: ignore[reportGeneralTypeIssues]
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         state, timestep = self._env.reset(key)
         observation = self._convert_jumanji_obs(timestep.observation)
         return observation, state

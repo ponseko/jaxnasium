@@ -25,6 +25,7 @@ from .wrappers import (
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
+    GymnasiumWrapper as GymnasiumWrapper,
     GymnaxWrapper as GymnaxWrapper,
     JaxMARLWrapper as JaxMARLWrapper,
     JumanjiWrapper as JumanjiWrapper,

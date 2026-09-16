@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
-from jaxnasium._environment import TEnvState, TimeStep, TObservation
+from jaxnasium._environment import Observation, TEnvState, TimeStep
 from jaxnasium._spaces import Space
 from jaxnasium._types import AgentObservation
 
@@ -26,7 +26,7 @@ class JaxMARLWrapper(Wrapper):
     remove_world_state: bool = True
     """ Removes the world_state that is present in some environments from the observation. Required in Jaxnasium algorithms """
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, state = self._env.reset(key)
         if "world_state" in obs and self.remove_world_state:
             obs.pop("world_state")
@@ -37,7 +37,7 @@ class JaxMARLWrapper(Wrapper):
         except Exception:
             pass
 
-        return obs, state  # pyright: ignore
+        return obs, state
 
     def step(
         self, key: PRNGKeyArray, state: Any, action: float

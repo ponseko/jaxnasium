@@ -75,6 +75,19 @@ class Box(Space):
         if not isinstance(self.shape, tuple):
             object.__setattr__(self, "shape", (self.shape,))
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Box):
+            return NotImplemented
+        return (
+            self.shape == other.shape
+            and np.dtype(self.dtype) == np.dtype(other.dtype)
+            and np.array_equal(self.low, other.low)
+            and np.array_equal(self.high, other.high)
+        )
+
+    def __hash__(self) -> int:
+        return hash((Box, self.shape, np.dtype(self.dtype)))
+
     def sample(self, rng: PRNGKeyArray) -> Array:
         """Sample a random element of the space.
 
@@ -178,6 +191,18 @@ class MultiDiscrete(Space):
         self.nvec = nvec
         self.dtype = dtype
         self.shape = (len(np.asarray(nvec).tolist()),)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MultiDiscrete):
+            return NotImplemented
+        return (
+            self.shape == other.shape
+            and np.dtype(self.dtype) == np.dtype(other.dtype)
+            and np.array_equal(self.nvec, other.nvec)
+        )
+
+    def __hash__(self) -> int:
+        return hash((MultiDiscrete, self.shape, np.dtype(self.dtype)))
 
     def sample(self, rng: PRNGKeyArray) -> Int[Array, ""]:
         """Sample random action uniformly from set of discrete choices."""

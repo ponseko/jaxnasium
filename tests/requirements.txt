@@ -13,3 +13,4 @@ xminigrid==0.9.1
 craftax==1.5.0
 navix==0.7.3
 jaxon==2.0.0
+envpool==1.2.6

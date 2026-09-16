@@ -3,7 +3,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import replace
 from functools import partial, reduce
-from typing import Any, Literal, overload
+from typing import Any, Generic, Literal, overload
 
 import equinox as eqx
 import jax
@@ -15,9 +15,9 @@ import jaxnasium as jym
 from jaxnasium._environment import (
     ORIGINAL_OBSERVATION_KEY,
     Environment,
+    Observation,
     TEnvState,
     TimeStep,
-    TObservation,
 )
 from jaxnasium._spaces import Box, Discrete, MultiDiscrete, Space
 from jaxnasium._types import AgentObservation
@@ -35,7 +35,7 @@ class Wrapper(Environment):
     def __check_init__(self):
         logger.info(f"Wrapping environment with {self.__class__.__name__}")
 
-    def reset_env(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         return self._env.reset_env(key)
 
     def step_env(
@@ -43,7 +43,7 @@ class Wrapper(Environment):
     ) -> tuple[TimeStep, TEnvState]:
         return self._env.step_env(key, state, action)
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, Any]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, Any]:
         return self._env.reset(key)
 
     def step(
@@ -148,7 +148,21 @@ class VecEnvWrapper(Wrapper):
     environment, e.g. `NormalizeVecObsWrapper` and `NormalizeVecRewardWrapper`.
     """
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, Any]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def __check_init__(self):
+        if is_wrapped(self._env, "GymnasiumWrapper"):
+            n = getattr(self._env, "_internal_num_envs", None)
+            if n is not None:
+                raise ValueError(
+                    f"GymnasiumWrapper is already vectorized (num_envs={n}): "
+                    "do not wrap it in a VecEnvWrapper."
+                )
+            raise ValueError(
+                "GymnasiumWrapper cannot be vectorized with a VecEnvWrapper "
+                "(its step callback is not vmappable). Vectorize on the "
+                "Gymnasium side with a gymnasium.vector.VectorEnv."
+            )
+
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, Any]:
         obs, state = jax.vmap(self._env.reset)(key)
         return obs, state
 
@@ -159,8 +173,8 @@ class VecEnvWrapper(Wrapper):
         return timestep, state
 
 
-class LogEnvState(eqx.Module):
-    env_state: TEnvState  # pyright: ignore[reportGeneralTypeIssues]
+class LogEnvState(eqx.Module, Generic[TEnvState]):
+    env_state: TEnvState
     episode_returns: float | Array
     episode_lengths: int | Array
     returned_episode_returns: float | Array
@@ -190,7 +204,7 @@ class LogWrapper(Wrapper):
     - `_env`: Environment to wrap.
     """
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, LogEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, LogEnvState]:
         obs, env_state = self._env.reset(key)
 
         # Infer the reward shape from the environment step function:
@@ -252,8 +266,8 @@ class LogWrapper(Wrapper):
         return jnp.array(jax.tree.leaves(rewards)).squeeze()
 
 
-class NormalizeVecObsState(eqx.Module):
-    env_state: TEnvState  # pyright: ignore[reportGeneralTypeIssues]
+class NormalizeVecObsState(eqx.Module, Generic[TEnvState]):
+    env_state: TEnvState
     mean: Float[Array, "..."]
     var: Float[Array, "..."]
     count: float
@@ -311,7 +325,7 @@ class NormalizeVecObsWrapper(Wrapper):
         )
         return normalized_obs, new_state
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, NormalizeVecObsState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, NormalizeVecObsState]:
         obs, env_state = self._env.reset(key)
         obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
         obs_template = jax.tree.map(lambda o: o[0], obs)
@@ -340,8 +354,8 @@ class NormalizeVecObsWrapper(Wrapper):
         return timestep._replace(observation=normalized_obs), state
 
 
-class NormalizeVecRewState(eqx.Module):
-    env_state: TEnvState  # pyright: ignore[reportGeneralTypeIssues]
+class NormalizeVecRewState(eqx.Module, Generic[TEnvState]):
+    env_state: TEnvState
     mean: Float[Array, "..."]
     var: Float[Array, "..."]
     count: float
@@ -369,7 +383,7 @@ class NormalizeVecRewardWrapper(Wrapper):
                 " Please wrap the environment with `VecEnvWrapper` first."
             )
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, NormalizeVecRewState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, NormalizeVecRewState]:
         obs, env_state = self._env.reset(key)
         batch_count = jax.tree.leaves(obs)[0].shape[0]
         num_agents = self._env.agent_structure.num_leaves
@@ -430,6 +444,11 @@ class NormalizeVecRewardWrapper(Wrapper):
         return TimeStep(obs, reward, terminated, truncated, info), state
 
 
+def _flatten(x: Array) -> Array:
+    """Flattens or leaves unchaged if a scalar"""
+    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
+
+
 class FlattenObservationWrapper(Wrapper):
     """Flatten the observations of the environment.
 
@@ -442,10 +461,10 @@ class FlattenObservationWrapper(Wrapper):
     - `_env`: Environment to wrap.
     """
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, env_state = self._env.reset(key)
         obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
-        obs = jax.tree.map(lambda x: jnp.reshape(x, -1), obs)
+        obs = jax.tree.map(_flatten, obs)
         obs = eqx.combine(obs, masks)
         return obs, env_state
 
@@ -456,7 +475,7 @@ class FlattenObservationWrapper(Wrapper):
         obs, masks = partition_obs_and_masks(
             timestep.observation, self._env.multi_agent
         )
-        obs = jax.tree.map(lambda x: jnp.reshape(x, -1), obs)
+        obs = jax.tree.map(_flatten, obs)
         obs = eqx.combine(obs, masks)
         timestep = timestep._replace(observation=obs)
         try:
@@ -465,7 +484,7 @@ class FlattenObservationWrapper(Wrapper):
             terminal_obs, terminal_masks = partition_obs_and_masks(
                 info[ORIGINAL_OBSERVATION_KEY], self._env.multi_agent
             )
-            terminal_obs = jax.tree.map(lambda x: jnp.reshape(x, -1), terminal_obs)
+            terminal_obs = jax.tree.map(_flatten, terminal_obs)
             info[ORIGINAL_OBSERVATION_KEY] = eqx.combine(terminal_obs, terminal_masks)
             timestep = timestep._replace(info=info)
         except Exception:
@@ -597,12 +616,14 @@ class DiscreteActionWrapper(Wrapper):
 
 
 class MetaParamsWrapper(Wrapper):
+    """Adds params as to the `step` and `reset` signature similar to Gymnax"""
+
     def reset(self, key, params: dict):  # pyright: ignore[reportIncompatibleMethodOverride]
         env = self._env
         for k, value in params.items():
             if not hasattr(self._env, k):
                 raise ValueError(
-                    f"Trying to map over {k}, but environment {k} not found in {self._env}."
+                    f"Trying to set {k}, but {k} not found in {type(self._env).__name__}."
                 )
             env = eqx.tree_at(lambda env, _k=k: getattr(env, _k), env, value)
         return env.reset(key)
@@ -612,7 +633,7 @@ class MetaParamsWrapper(Wrapper):
         for k, value in params.items():
             if not hasattr(self._env, k):
                 raise ValueError(
-                    f"Trying to map over {k}, but environment {k} not found in {self._env}."
+                    f"Trying to set {k}, but {k} not found in {type(self._env).__name__}."
                 )
             env = eqx.tree_at(lambda env, _k=k: getattr(env, _k), env, value)
         return env.step(key, state, action)
@@ -875,7 +896,7 @@ class StackActionSpaceWrapper(Wrapper):
                 "over the same number of actions. The wrapper is a no-op."
             )
 
-    def reset(self, key: PRNGKeyArray) -> tuple[TObservation, Any]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, Any]:
         obs, env_state = self._env.reset(key)
         replace_mask_fn = partial(self._replace_masks, new_mask_fn=_stack_action_masks)
         obs = self._per_agent(replace_mask_fn, obs, self._env.action_space)
