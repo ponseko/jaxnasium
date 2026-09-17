@@ -31,9 +31,9 @@ class CNN(eqx.Module):
         *,
         key: PRNGKeyArray,
         out_channels: Sequence[int] = (32, 64, 64),
-        kernel_sizes: Sequence[int] = (3, 3, 2),
+        kernel_sizes: Sequence[int] = (3, 3, 3),
         strides: Sequence[int] = (1, 1, 1),
-        padding: Sequence[int] = (0, 0, 0),
+        padding: Sequence[int] = (1, 1, 1),
         channels_axis: Literal["first", "last"] = "first",
         activation: Callable = jax.nn.relu,
     ):
@@ -99,9 +99,9 @@ class CNN(eqx.Module):
         cls,
         *,
         out_channels: Sequence[int] = (32, 64, 64),
-        kernel_sizes: Sequence[int] = (3, 3, 2),
+        kernel_sizes: Sequence[int] = (3, 3, 3),
         strides: Sequence[int] = (1, 1, 1),
-        padding: Sequence[int] = (0, 0, 0),
+        padding: Sequence[int] = (1, 1, 1),
         channels_axis: Literal["first", "last"] | None = None,
         activation: Callable = jax.nn.relu,
     ) -> Callable[..., Self]:

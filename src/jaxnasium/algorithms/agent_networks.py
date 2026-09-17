@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_ARCHITECTURE_2D = CNN.with_params(
     out_channels=(32, 64, 64),
-    kernel_sizes=(3, 3, 2),
+    kernel_sizes=(3, 3, 3),
     strides=(1, 1, 1),
-    padding=(0, 0, 0),
+    padding=(1, 1, 1),
 )
 
 
