@@ -55,7 +55,8 @@ class NavixWrapper(Wrapper):
 
     @property
     def action_space(self) -> Discrete:
-        num_actions = self._env.action_space.maximum
-        # Add the "done" no-op action which is outside of the Navix action space (?)
-        num_actions += 1
-        return Discrete(num_actions)
+        with jax.ensure_compile_time_eval():
+            num_actions = self._env.action_space.maximum
+            # Add the "done" no-op action which is outside of the Navix action space (?)
+            num_actions += 1
+            return Discrete(num_actions)
