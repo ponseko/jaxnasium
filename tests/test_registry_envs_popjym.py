@@ -12,4 +12,4 @@ POPJYM_ENVS = registry_envs_for_package("popjym")
 
 @pytest.mark.parametrize("env_id", POPJYM_ENVS)
 def test_popjym_env_smoke(env_id: str) -> None:
-    check_env(env_id, flatten_obs=True, run_env=False)
+    check_env(env_id, flatten_obs=True, run_env=True)

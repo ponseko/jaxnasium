@@ -36,7 +36,11 @@ AGENT_MIN_CONFIG = {
 # Skipped due some bugs in the environments
 SKIP_ENVS: dict[str, str] = {
     "SimpleBandit-bsuite": "bug on reset: https://github.com/RobertTLange/gymnax/issues/110",
-    "_SUITE_:jaxmarl": "JaxMarl technically works on old versions of jax/flax, but is left out of tests until jaxmarl 2.0 is released https://github.com/FLAIROx/JaxMARL/pull/186",
+    "storm": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
+    "storm_2p": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
+    "storm_np": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
+    "Tetris-v0": "Uses invalid jnp.clip call",
+    "NoisyStatelessMetaCartPole": "Not runnable in newer jax versions > 0.10",
 }
 
 # Skipped for some limatation in default configuration of algorithms
