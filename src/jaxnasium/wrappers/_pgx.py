@@ -65,7 +65,7 @@ class PgxWrapper(Wrapper):
         return timestep, state
 
     @property
-    def observation_space(self) -> Box | list[Box]:
+    def observation_space(self) -> AgentObservation | tuple[AgentObservation]:
         num_players = self._env.num_players
         shape = self._env.observation_shape
         obs_space = Box(
@@ -74,6 +74,13 @@ class PgxWrapper(Wrapper):
             shape=shape,
             dtype=jnp.int32,
         )
+        action_mask_space = Box(
+            low=np.full(self._env.num_actions, False),
+            high=np.full(self._env.num_actions, True),
+            shape=(self._env.num_actions,),
+            dtype=jnp.bool_,
+        )
+        obs_space = AgentObservation(obs_space, action_mask_space)
         if self.multi_agent:
             return (obs_space,) * num_players
         return obs_space
