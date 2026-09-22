@@ -61,7 +61,7 @@ external = [
 [tool.uv.sources]
 create-rl-app = { git = "https://github.com/ponseko/create-rl-app.git", branch = "v1" } 
 popjym = { git = "https://github.com/FLAIROx/popjym" }
-rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition@GAIA_jax#subdirectory=rice_jax" }
+rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", branch = "GAIA_jax", subdirectory="rice_jax" }
 chargax = { git = "https://github.com/ponseko/chargax" }
 econojax = { git = "https://github.com/ponseko/econojax" }
 
