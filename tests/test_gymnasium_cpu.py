@@ -217,3 +217,37 @@ def test_vmapping_training_runs_raises():
     trainer = PPO(num_envs=NUM_ENVS, total_timesteps=64, num_steps=8, log_function=None)
     with pytest.raises(ValueError, match="vmap"):
         jax.vmap(lambda k: trainer.train(k, env)[1])(jax.random.split(SEED, 2))
+
+
+def test_dict_and_tuple_gymasium_space_conversion():
+    ## uses a nested spaces of tuples and dicts
+    class Env(gymnasium.Env):
+        def __init__(self):
+            self.observation_space = gymnasium.spaces.Box(
+                -1, 1, shape=(1,), dtype=np.float32
+            )
+            self.action_space = gymnasium.spaces.Dict(
+                {
+                    "move": gymnasium.spaces.Box(-1, 1, shape=(2,), dtype=np.float32),
+                    "choice": gymnasium.spaces.Tuple(
+                        (
+                            gymnasium.spaces.Discrete(3),
+                            gymnasium.spaces.MultiDiscrete([2, 2]),
+                        )
+                    ),
+                }
+            )
+
+        def reset(self, *, seed=None, options=None):
+            super().reset(seed=seed)
+            return self.observation_space.sample(), {}
+
+        def step(self, action):
+            return self.observation_space.sample(), 0.0, False, False, {}
+
+    space = GymnasiumWrapper(Env()).action_space
+    assert isinstance(space["move"], jym.Box) and space["move"].shape == (2,)  # type: ignore[reportOptionalMemberAccess]
+    discrete, multi = space["choice"]  # type: ignore[reportOptionalMemberAccess]
+    assert isinstance(discrete, jym.Discrete) and int(discrete.n) == 3
+    assert isinstance(multi, jym.MultiDiscrete)
+    np.testing.assert_array_equal(multi.nvec, [2, 2])
