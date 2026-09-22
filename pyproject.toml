@@ -29,9 +29,6 @@ build-backend = "uv_build"
 [project.scripts]
 jaxnasium = "create_rl_app.main:main"
 
-[tool.uv.sources]
-create-rl-app = { git = "https://github.com/ponseko/create-rl-app.git", branch = "v1" } 
-
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
@@ -44,15 +41,29 @@ dev = [
     "mkdocstrings[python]>=0.29.1",
 ]
 external = [
-    "brax>=0.14.2",
-    "gym>=0.26.2",
-    "gymnax>=0.0.9",
-    "jumanji>=1.1.1",
-    "navix>=0.7.4",
-    "octax>=0.1.1",
-    "pgx>=2.6.0",
-    "xminigrid>=0.9.3",
+    "brax==0.14.2",
+    "gym==0.26.2",
+    "gymnax==0.0.9",
+    "jumanji==1.1.1",
+    "navix==0.7.4",
+    "octax==0.1.1",
+    "pgx==2.6.0",
+    "xminigrid==0.9.3",
+    "jaxmarl==0.2.0",
+    "playground==0.2.0",
+    "envpool==1.2.5,!=1.2.6",
+    "popjym",
+    "rice_jax",
+    "chargax",
+    "econojax",
 ]
+
+[tool.uv.sources]
+create-rl-app = { git = "https://github.com/ponseko/create-rl-app.git", branch = "v1" } 
+popjym = { git = "https://github.com/FLAIROx/popjym" }
+rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", branch = "GAIA_jax", subdirectory="rice_jax" }
+chargax = { git = "https://github.com/ponseko/chargax" }
+econojax = { git = "https://github.com/ponseko/econojax" }
 
 [tool.ruff.format]
 docstring-code-format = true

@@ -9,6 +9,7 @@ pytest.importorskip("rice_jax")
 pytest.importorskip("chargax")
 
 
+@pytest.mark.skip(reason="EconoJax is pending upgrade")
 def test_econojax_env():
     from econojax import EconoJax  # type: ignore
 
