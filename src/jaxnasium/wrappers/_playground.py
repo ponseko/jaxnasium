@@ -16,17 +16,17 @@ class PlaygroundWrapper(BraxWrapper):
                 obs_size = self._env.observation_size["state"]
             except TypeError:
                 obs_size = self._env.observation_size
-            return jym.Box(
-                low=-np.inf, high=np.inf, shape=(obs_size,), dtype=jnp.float32
-            )
+            if isinstance(obs_size, int):
+                obs_size = (obs_size,)
+            return jym.Box(low=-np.inf, high=np.inf, shape=obs_size, dtype=jnp.float32)
 
     @property
     def action_space(self):
         with jax.ensure_compile_time_eval():
             r = np.asarray(self._env.mj_model.actuator_ctrlrange, dtype=np.float32)
+            action_size = self._env.action_size
+            if isinstance(action_size, int):
+                action_size = (action_size,)
             return jym.Box(
-                low=r[:, 0],
-                high=r[:, 1],
-                shape=(self._env.action_size,),
-                dtype=jnp.float32,
+                low=r[:, 0], high=r[:, 1], shape=action_size, dtype=jnp.float32
             )
