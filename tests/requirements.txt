@@ -1,6 +1,6 @@
 pytest
 gymnax==0.0.9
-brax==0.13.0
+brax==0.14.2
 gym==0.26.2
 jumanji==1.1.1
 econojax @ git+https://github.com/ponseko/econojax
