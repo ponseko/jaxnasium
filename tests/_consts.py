@@ -39,8 +39,9 @@ SKIP_ENVS: dict[str, str] = {
     "storm": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
     "storm_2p": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
     "storm_np": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
-    "Tetris-v0": "Uses invalid jnp.clip call",
+    "Tetris-v0": "Uses invalid jnp.clip call (older version)",
     "NoisyStatelessMetaCartPole": "Not runnable in newer jax versions > 0.10",
+    "LeapCubeReorient": "Uses invalid jnp.clip call (older version)",
 }
 
 # Skipped for some limatation in default configuration of algorithms

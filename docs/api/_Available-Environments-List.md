@@ -41,7 +41,7 @@
 - `jumanji:Knapsack-v1`
 - `jumanji:Tetris-v0`
 - `jumanji:Cleaner-v0`
-- `jumanji:Connector-v2`
+- `jumanji:Connector-v3`
 - `jumanji:CVRP-v1`
 - `jumanji:MultiCVRP-v0`
 - `jumanji:Maze-v0`
@@ -300,8 +300,6 @@
 - `playground:HumanoidRun`
 - `playground:PendulumSwingup`
 - `playground:PointMass`
-- `playground:ReacherEasy`
-- `playground:ReacherHard`
 - `playground:SwimmerSwimmer6`
 - `playground:WalkerRun`
 - `playground:WalkerStand`
@@ -329,9 +327,7 @@
 - `playground:AlohaSinglePegInsertion`
 - `playground:PandaPickCube`
 - `playground:PandaPickCubeOrientation`
-- `playground:PandaPickCubeCartesian`
 - `playground:PandaOpenCabinet`
-- `playground:PandaRobotiqPushCube`
 - `playground:LeapCubeReorient`
 - `playground:LeapCubeRotateZAxis`
 - `playground:AeroCubeRotateZAxis`

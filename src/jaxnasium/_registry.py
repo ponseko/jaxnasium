@@ -325,7 +325,7 @@ registry.register_alias("JobShop-v0", "jumanji:JobShop-v0")
 registry.register_alias("Knapsack-v1", "jumanji:Knapsack-v1")
 registry.register_alias("Tetris-v0", "jumanji:Tetris-v0")
 registry.register_alias("Cleaner-v0", "jumanji:Cleaner-v0")
-registry.register_alias("Connector-v2", "jumanji:Connector-v2")
+registry.register_alias("Connector-v3", "jumanji:Connector-v3")
 registry.register_alias("CVRP-v1", "jumanji:CVRP-v1")
 registry.register_alias("MultiCVRP-v0", "jumanji:MultiCVRP-v0")
 registry.register_alias("Maze-v0", "jumanji:Maze-v0")
@@ -648,8 +648,8 @@ for _playground_env_id in (
     "HumanoidRun",
     "PendulumSwingup",
     "PointMass",
-    "ReacherEasy",
-    "ReacherHard",
+    # "ReacherEasy", bug
+    # "ReacherHard", bug
     "SwimmerSwimmer6",
     "WalkerRun",
     "WalkerStand",
@@ -677,9 +677,9 @@ for _playground_env_id in (
     "AlohaSinglePegInsertion",
     "PandaPickCube",
     "PandaPickCubeOrientation",
-    "PandaPickCubeCartesian",
+    # "PandaPickCubeCartesian",
     "PandaOpenCabinet",
-    "PandaRobotiqPushCube",
+    # "PandaRobotiqPushCube",
     "LeapCubeReorient",
     "LeapCubeRotateZAxis",
     "AeroCubeRotateZAxis",  # no jax impl
