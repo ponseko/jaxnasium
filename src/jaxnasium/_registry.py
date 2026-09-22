@@ -13,6 +13,7 @@ from .wrappers import (
     NavixWrapper,
     OctaxWrapper,
     PgxWrapper,
+    PlaygroundWrapper,
     Wrapper,
     xMinigridWrapper,
 )
@@ -189,6 +190,13 @@ class Registry:
                 )
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
+                return env  # type: ignore
+            elif package == "playground":
+                import mujoco_playground  # type: ignore
+
+                env = mujoco_playground.registry.load(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, PlaygroundWrapper)
                 return env  # type: ignore
             else:
                 raise ValueError(f"Unsupported/unknown external package: {package}")
@@ -619,3 +627,61 @@ for _popjym_id in (
     "RepeatPreviousHard",
 ):
     registry.register_alias(f"{_popjym_id}", f"popjym:{_popjym_id}")
+
+for _playground_env_id in (
+    "AcrobotSwingup",
+    "AcrobotSwingupSparse",
+    "BallInCup",
+    "CartpoleBalance",
+    "CartpoleBalanceSparse",
+    "CartpoleSwingup",
+    "CartpoleSwingupSparse",
+    "CheetahRun",
+    "FingerSpin",
+    "FingerTurnEasy",
+    "FingerTurnHard",
+    "FishSwim",
+    "HopperHop",
+    "HopperStand",
+    "HumanoidStand",
+    "HumanoidWalk",
+    "HumanoidRun",
+    "PendulumSwingup",
+    "PointMass",
+    "ReacherEasy",
+    "ReacherHard",
+    "SwimmerSwimmer6",
+    "WalkerRun",
+    "WalkerStand",
+    "WalkerWalk",
+    "ApolloJoystickFlatTerrain",
+    "BarkourJoystick",
+    "BerkeleyHumanoidJoystickFlatTerrain",
+    "BerkeleyHumanoidJoystickRoughTerrain",
+    "G1JoystickFlatTerrain",
+    "G1JoystickRoughTerrain",
+    "Go1JoystickFlatTerrain",
+    "Go1JoystickRoughTerrain",
+    "Go1Getup",
+    "Go1Handstand",
+    "Go1Footstand",
+    "H1InplaceGaitTracking",
+    "H1JoystickGaitTracking",
+    "Op3Joystick",
+    "SpotFlatTerrainJoystick",
+    "SpotGetup",
+    "SpotJoystickGaitTracking",
+    "T1JoystickFlatTerrain",
+    "T1JoystickRoughTerrain",
+    "AlohaHandOver",
+    "AlohaSinglePegInsertion",
+    "PandaPickCube",
+    "PandaPickCubeOrientation",
+    "PandaPickCubeCartesian",
+    "PandaOpenCabinet",
+    "PandaRobotiqPushCube",
+    "LeapCubeReorient",
+    "LeapCubeRotateZAxis",
+    "AeroCubeRotateZAxis",  # no jax impl
+):
+    registry.register_alias(f"{_playground_env_id}", f"playground:{_playground_env_id}")

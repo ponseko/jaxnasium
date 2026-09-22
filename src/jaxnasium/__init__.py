@@ -36,6 +36,7 @@ from .wrappers import (
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
     OctaxWrapper as OctaxWrapper,
     PgxWrapper as PgxWrapper,
+    PlaygroundWrapper as PlaygroundWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
     TransformRewardWrapper as TransformRewardWrapper,

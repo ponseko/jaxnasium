@@ -83,6 +83,8 @@ def gymnasium_to_jaxnasium_space(space: Any) -> Space | PyTree[Space]:
                 nvec=space.nvec,
                 dtype=space.dtype,
             )
+        elif space_class_name in ["Dict", "Tuple"]:
+            return jax.tree.map(convert_single_space, space.spaces)
         else:
             raise NotImplementedError(
                 f"Conversion for space type {space_class_name} is not implemented."

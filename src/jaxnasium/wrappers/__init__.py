@@ -6,6 +6,7 @@ from ._jumanji import JumanjiWrapper as JumanjiWrapper
 from ._navix import NavixWrapper as NavixWrapper
 from ._octax import OctaxWrapper as OctaxWrapper
 from ._pgx import PgxWrapper as PgxWrapper
+from ._playground import PlaygroundWrapper as PlaygroundWrapper
 from ._util import (
     gymnasium_to_jaxnasium_space as gymnasium_to_jaxnasium_space,
     partition_obs_and_masks as partition_obs_and_masks,

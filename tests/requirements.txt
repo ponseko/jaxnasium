@@ -15,3 +15,4 @@ navix==0.7.3
 jaxon==2.0.0
 envpool==1.2.6
 popjym @ git+https://github.com/FLAIROx/popjym
+playground==0.2.0
