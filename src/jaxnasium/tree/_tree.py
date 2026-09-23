@@ -430,7 +430,9 @@ def tree_split_key_like_structure(key: PRNGKeyArray, structure: PyTreeDef):  # p
     return jax.tree.unflatten(structure, keys)
 
 
-def tree_split_key_like(key: PRNGKeyArray, tree: PyTree, is_leaf: PyTreeDef):  # pyright: ignore[reportInvalidTypeForm]
+def tree_split_key_like(
+    key: PRNGKeyArray, tree: PyTree, is_leaf: None | (Callable[[Any], bool]) = None
+):  # pyright: ignore[reportInvalidTypeForm]
     """Split a JAX PRNGKey into a pytree of keys with the same structure as `tree`.
 
     *Arguments*:
