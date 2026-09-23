@@ -62,8 +62,9 @@ class Environment(eqx.Module, Generic[TEnvState]):
         - `action`: Action to take in the environment.
         """
 
-        timestep_step, state_step = self.step_env(key, state, action)
-        timestep, state = self.auto_reset(key, timestep_step, state_step)
+        step_key, reset_key = jax.random.split(key)
+        timestep_step, state_step = self.step_env(step_key, state, action)
+        timestep, state = self.auto_reset(reset_key, timestep_step, state_step)
         return timestep, state
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
