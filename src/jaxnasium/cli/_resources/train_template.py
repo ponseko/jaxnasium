@@ -16,7 +16,7 @@ def do_random_evaluation(
         reset_key, key = jax.random.split(key)
         obs, env_state = env.reset(reset_key)
         while True:
-            sample_key, step_key, key = jax.random.split(key)
+            sample_key, step_key, key = jax.random.split(key, 3)
             action = env.action_space.sample(sample_key)
             (obs, reward, terminated, truncated, info), env_state = env.step(
                 step_key, env_state, action
