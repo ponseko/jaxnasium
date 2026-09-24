@@ -1,17 +1,19 @@
 import difflib
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Type
+from typing import Any, Literal
 
 from ._environment import Environment
-from ._wrappers import LogWrapper
-from ._wrappers_ext import (
+from .wrappers import (
     BraxWrapper,
     GymnaxWrapper,
     JaxMARLWrapper,
     JumanjiWrapper,
+    LogWrapper,
     NavixWrapper,
+    OctaxWrapper,
     PgxWrapper,
+    PlaygroundWrapper,
     Wrapper,
     xMinigridWrapper,
 )
@@ -20,17 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 def _wrap_env(
-    env: Environment | Any, wrapper: Type[Wrapper], **wrapper_kwargs
+    env: Environment | Any, wrapper: type[Wrapper], **wrapper_kwargs
 ) -> Environment:
     """Simply wraps an environment and outputs what happened to a logger"""
-    logger.info(f"Wrapping environment with {wrapper.__name__}")
     return wrapper(env, **wrapper_kwargs)
 
 
 @dataclass
 class Registry:
-    _environments: Dict[str, Type[Environment]] = field(default_factory=dict)
-    _aliases: Dict[str, str] = field(default_factory=dict)
+    _environments: dict[str, type[Environment]] = field(default_factory=dict)
+    _aliases: dict[str, str] = field(default_factory=dict)
 
     def register(self, id: str, **kwargs):
         """Register an environment with the registry.
@@ -41,7 +42,7 @@ class Registry:
             `**kwargs`: currently unused
         """
 
-        def decorator(env_class: Type[Environment]) -> Type[Environment]:
+        def decorator(env_class: type[Environment]) -> type[Environment]:
             self._environments[id] = env_class
             return env_class
 
@@ -59,10 +60,7 @@ class Registry:
     def make(
         self,
         id: str,
-        wrappers: List[Type[Wrapper] | Literal["external_lib_wrapper"]] = [
-            "external_lib_wrapper",
-            LogWrapper,
-        ],
+        wrappers: list[type[Wrapper] | Literal["external_lib_wrapper"]] | None = None,
         **env_kwargs,
     ) -> Environment:
         """Create an environment instance.
@@ -70,11 +68,13 @@ class Registry:
         **Arguments**:
             `id`: The environment ID
             `wrappers`: List of wrappers to apply to the environment.
-                - `external_lib_wrapper` (string): Wrapper for external libraries (e.g. Gymnax, Jumanji, Brax).
+                can also be "external_lib_wrapper" (string): Wrapper for external libraries (e.g. Gymnax, Jumanji, Brax).
                     only used if a environment is loaded from a supported external library.
-                - `LogWrapper` (class): Wrapper for logging the actions
+                If None provided, we wrap the external_lib_wrapper (if applicable) and `LogWrapper`.
             `**env_kwargs`: Environment constructor arguments
         """
+        if wrappers is None:
+            wrappers = ["external_lib_wrapper", LogWrapper]
         # Handle aliases
         assert id is not None, "Environment ID cannot be None"
         env = None
@@ -119,62 +119,84 @@ class Registry:
         """
         try:
             if package == "gymnax":
-                import gymnax
+                import gymnax  # type: ignore
 
                 env, _ = gymnax.make(env_name, **env_kwargs)
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)
                 return env  # type: ignore
+            elif package == "popjym":
+                # Popgym uses the gymnax api (< version 1)
+                import popjym  # type: ignore
+
+                env, _ = popjym.make(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, GymnaxWrapper)
+                return env  # type: ignore
             elif package == "jumanji":
-                import jumanji
+                import jumanji  # type: ignore
 
                 env = jumanji.make(env_name, **env_kwargs)  # type: ignore
                 if wrap:
                     return _wrap_env(env, JumanjiWrapper)
                 return env  # type: ignore
             elif package == "brax":
-                import brax.envs
+                import brax.envs  # type: ignore
 
                 env = brax.envs.get_environment(env_name, **env_kwargs)
                 if wrap:
                     return _wrap_env(env, BraxWrapper)
                 return env  # type: ignore
             elif package == "pgx":
-                import pgx
+                import pgx  # type: ignore
 
                 env = pgx.make(env_name, **env_kwargs)  # type: ignore
                 if wrap:
                     return _wrap_env(env, PgxWrapper)
                 return env  # type: ignore
             elif package == "jaxmarl":
-                import jaxmarl
+                import jaxmarl  # type: ignore
 
                 env = jaxmarl.make(env_name, **env_kwargs)
                 if wrap:
                     return _wrap_env(env, JaxMARLWrapper)
                 return env  # type: ignore
             elif package == "xminigrid":
-                import xminigrid
+                import xminigrid  # type: ignore
 
-                env, env_params = xminigrid.make(env_name, **env_kwargs)
+                env, env_params = xminigrid.make(env_name, **env_kwargs)  # type: ignore
                 if wrap:
                     return _wrap_env(env, xMinigridWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "navix":
-                import navix
+                import navix  # type: ignore
 
                 env = navix.make(env_name, **env_kwargs)
                 if wrap:
                     return _wrap_env(env, NavixWrapper)
                 return env  # type: ignore
+            elif package == "octax":
+                from octax.environments import create_environment  # type: ignore
+
+                env, _metadata = create_environment(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, OctaxWrapper)
+                return env  # type: ignore
             elif package == "craftax":
-                from craftax import craftax_env
+                from craftax import craftax_env  # type: ignore
 
                 env = craftax_env.make_craftax_env_from_name(
                     env_name, auto_reset=False, **env_kwargs
                 )
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
+                return env  # type: ignore
+            elif package == "playground":
+                import mujoco_playground  # type: ignore
+
+                env = mujoco_playground.registry.load(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, PlaygroundWrapper)
                 return env  # type: ignore
             else:
                 raise ValueError(f"Unsupported/unknown external package: {package}")
@@ -183,7 +205,7 @@ class Registry:
                 f"Package {package} not installed. Please install manually via pip: {e}"
             )
 
-    def get_env_class(self, id: str) -> Type[Environment]:
+    def get_env_class(self, id: str) -> type[Environment]:
         """Get the environment class for an environment ID.
 
         **Arguments**:
@@ -201,7 +223,7 @@ class Registry:
         raise ValueError(f"Environment {id} not found in registry")
 
     @property
-    def registered_envs(self) -> List[str]:
+    def registered_envs(self) -> list[str]:
         """List all environments in the registry as a flat list."""
         return list(self._environments.keys()) + list(self._aliases.keys())
 
@@ -216,7 +238,7 @@ class Registry:
             envs_per_line = 3
             # Get max length across ALL environments for consistent column width
             all_envs = list(self._environments.keys()) + [
-                alias for alias in self._aliases.keys()
+                alias for alias in self._aliases
             ]
             max_length = max(len(env) for env in all_envs) if all_envs else 0
             formatted = "\n".join(
@@ -303,7 +325,7 @@ registry.register_alias("JobShop-v0", "jumanji:JobShop-v0")
 registry.register_alias("Knapsack-v1", "jumanji:Knapsack-v1")
 registry.register_alias("Tetris-v0", "jumanji:Tetris-v0")
 registry.register_alias("Cleaner-v0", "jumanji:Cleaner-v0")
-registry.register_alias("Connector-v2", "jumanji:Connector-v2")
+registry.register_alias("Connector-v3", "jumanji:Connector-v3")
 registry.register_alias("CVRP-v1", "jumanji:CVRP-v1")
 registry.register_alias("MultiCVRP-v0", "jumanji:MultiCVRP-v0")
 registry.register_alias("Maze-v0", "jumanji:Maze-v0")
@@ -515,6 +537,36 @@ registry.register_alias("Navix-GoToDoor-5x5-v0", "navix:Navix-GoToDoor-5x5-v0")
 registry.register_alias("Navix-GoToDoor-6x6-v0", "navix:Navix-GoToDoor-6x6-v0")
 registry.register_alias("Navix-GoToDoor-8x8-v0", "navix:Navix-GoToDoor-8x8-v0")
 
+# Octax CHIP-8 envs
+for _octax_id in (
+    "airplane",
+    "blinky",
+    "brix",
+    *(f"cavern{i}" for i in (1, 2, 3, 5, 6)),
+    "deep",
+    "filter",
+    "flight_runner",
+    "missile",
+    "pong",
+    "rocket",
+    "shooting_stars",
+    *(f"space_flight{i}" for i in range(1, 11)),
+    "spacejam",
+    "squash",
+    "submarine",
+    "tank",
+    *(f"target_shooter{i}" for i in range(1, 4)),
+    "tetris",
+    "ufo",
+    "vertical_brix",
+    "wipe_off",
+    "worm",
+):
+    registry.register_alias(f"{_octax_id}", f"octax:{_octax_id}")
+registry.register_alias("cavern", "octax:cavern1")
+registry.register_alias("space_flight", "octax:space_flight1")
+registry.register_alias("target_shooter", "octax:target_shooter1")
+
 # Craftax envs
 registry.register_alias(
     "Craftax-Classic-Symbolic-v1", "craftax:Craftax-Classic-Symbolic-v1"
@@ -530,3 +582,106 @@ registry.register_alias("Craftax-Pixels-v1", "craftax:Craftax-Pixels-v1")
 # registry.register_alias(
 #     "Craftax-Pixels-AutoReset-v1", "craftax:Craftax-Pixels-AutoReset-v1"
 # )
+
+# PopJym envs (POPGym in JAX). These are partially observable.
+for _popjym_id in (
+    "NoisyStatelessMetaCartPole",
+    "AutoencodeEasy",
+    "AutoencodeMedium",
+    "AutoencodeHard",
+    "BattleshipEasy",
+    "BattleshipMedium",
+    "BattleshipHard",
+    "ConcentrationEasy",
+    "ConcentrationMedium",
+    "ConcentrationHard",
+    "CountRecallEasy",
+    "CountRecallMedium",
+    "CountRecallHard",
+    "HigherLowerEasy",
+    "HigherLowerMedium",
+    "HigherLowerHard",
+    "MinesweeperEasy",
+    "MinesweeperMedium",
+    "MinesweeperHard",
+    "MultiArmedBanditEasy",
+    "MultiArmedBanditMedium",
+    "MultiArmedBanditHard",
+    "StatelessCartPoleEasy",
+    "StatelessCartPoleMedium",
+    "StatelessCartPoleHard",
+    "NoisyStatelessCartPoleEasy",
+    "NoisyStatelessCartPoleMedium",
+    "NoisyStatelessCartPoleHard",
+    "StatelessPendulumEasy",
+    "StatelessPendulumMedium",
+    "StatelessPendulumHard",
+    "NoisyStatelessPendulumEasy",
+    "NoisyStatelessPendulumMedium",
+    "NoisyStatelessPendulumHard",
+    "RepeatFirstEasy",
+    "RepeatFirstMedium",
+    "RepeatFirstHard",
+    "RepeatPreviousEasy",
+    "RepeatPreviousMedium",
+    "RepeatPreviousHard",
+):
+    registry.register_alias(f"{_popjym_id}", f"popjym:{_popjym_id}")
+
+for _playground_env_id in (
+    "AcrobotSwingup",
+    "AcrobotSwingupSparse",
+    "BallInCup",
+    "CartpoleBalance",
+    "CartpoleBalanceSparse",
+    "CartpoleSwingup",
+    "CartpoleSwingupSparse",
+    "CheetahRun",
+    "FingerSpin",
+    "FingerTurnEasy",
+    "FingerTurnHard",
+    "FishSwim",
+    "HopperHop",
+    "HopperStand",
+    "HumanoidStand",
+    "HumanoidWalk",
+    "HumanoidRun",
+    "PendulumSwingup",
+    "PointMass",
+    # "ReacherEasy", bug
+    # "ReacherHard", bug
+    "SwimmerSwimmer6",
+    "WalkerRun",
+    "WalkerStand",
+    "WalkerWalk",
+    "ApolloJoystickFlatTerrain",
+    "BarkourJoystick",
+    "BerkeleyHumanoidJoystickFlatTerrain",
+    "BerkeleyHumanoidJoystickRoughTerrain",
+    "G1JoystickFlatTerrain",
+    "G1JoystickRoughTerrain",
+    "Go1JoystickFlatTerrain",
+    "Go1JoystickRoughTerrain",
+    "Go1Getup",
+    "Go1Handstand",
+    "Go1Footstand",
+    "H1InplaceGaitTracking",
+    "H1JoystickGaitTracking",
+    "Op3Joystick",
+    "SpotFlatTerrainJoystick",
+    "SpotGetup",
+    "SpotJoystickGaitTracking",
+    "T1JoystickFlatTerrain",
+    "T1JoystickRoughTerrain",
+    "AlohaHandOver",
+    "AlohaSinglePegInsertion",
+    "PandaPickCube",
+    "PandaPickCubeOrientation",
+    # "PandaPickCubeCartesian",
+    "PandaOpenCabinet",
+    # "PandaRobotiqPushCube",
+    "LeapCubeReorient",
+    "LeapCubeRotateZAxis",
+    "AeroCubeRotateZAxis",  # no jax impl
+):
+    registry.register_alias(f"{_playground_env_id}", f"playground:{_playground_env_id}")

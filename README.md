@@ -7,105 +7,110 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Documentation Status](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://ponseko.github.io/jaxnasium/)
 
-Jaxnasium lets you
+Jaxnasium is not an environment suite, and not a framework that locks you in. Rather, it is your one-stop shop for your JAX RL code: a single environment API that existing suites are wrapped into, a set of general algorithms you can either import or copy into your project, and the
+tooling to train, evaluate and sweep them.
 
-1. 🕹️ Import your favourite environments from various libraries with a single API and automatically wrap them to a common standard.
-2. 🚀 Bootstrap new JAX RL projects with a single CLI command and get started instantly with a complete codebase.
-3. 🤖 Jaxnasium comes equiped with standard **general** RL implementations based on a near-single-file philosophy. You can either import these as off-the-shelf algorithms or copy over the code and tweak them for your problem. These algorithms follow the ideas of [PureJaxRL](https://github.com/luchris429/purejaxrl) for extremely fast end-to-end RL training in JAX.
+1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Pgx, JaxMARL, xMinigrid, Navix, PopJym or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
+2. 🤖 **Readable cross-suite algorithms.** Various algorithms that can operate on any of those environments in near-single-file philosophy, built in [Equinox](https://github.com/patrick-kidger/equinox) with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3)-like API and end-to-end JIT training in the spirit of [PureJaxRL](https://github.com/luchris429/purejaxrl).
+3. 👥 **Multi-agent for free.** Single-agent algorithm code transparently upgrades to multi-agent environments through PyTrees and function transformations.
+4. 📊 **Sweeps and evaluation.** Grid, random, Sobol and one-at-a-time searches over many seeds, locally or across a Slurm job array.
+5. 🚀 **Project scaffolding.** Bootstrap a complete codebase with a single CLI command.
 
 For more details, see the [📖 Documentation](https://ponseko.github.io/jaxnasium/).
 
-## 🚀 Getting started
+## Installation
 
-Jaxnasium lets you bootstrap your new reinforcement learning projects directly from the command line. As such, for new projects, the easiest way to get started is via [uv](https://docs.astral.sh/uv/getting-started/installation/):
+```bash
+pip install "jaxnasium[algs]"   # [algs] pulls in optax + distrax, needed for jaxnasium.algorithms
+```
 
-> ```bash
-> uvx jaxnasium <projectname>
-> uv run example_train.py
-> 
-> # ... or via pipx
-> pipx run jaxnasium <projectname>
-> # activate a virtual environment in your preferred way, e.g. conda
-> python example_train.py
-> ```
+Third-party environment suites are *not* dependencies; install the ones you want to use
+(e.g. `pip install gymnax`). For a brand-new project, let the [CLI](https://ponseko.github.io/jaxnasium/cli/) set everything up for you:
 
-This will set up a Python project folder structure with (optionally) an environment template and (optionally) algorithm code for you to tailor to your problem.
+```bash
+uvx jaxnasium init <projectname>   # or: pipx run jaxnasium init <projectname>
+cd <projectname> && uv run train.py
+```
 
-For existing projects, you can simply install Jaxnasium via `pip` and import the required functionality.
+## Quickstart
 
-> ```bash
-> pip install jaxnasium
-> ```
+```python
+import jax
+import jaxnasium as jym
+from jaxnasium.algorithms import PPO
 
-> ```python
-> import jax
-> import jaxnasium as jym
-> from jaxnasium.algorithms import PPO
-> 
-> env = jym.make("CartPole-v1")
-> env = jaxnasium.LogWrapper(env)
-> rng = jax.random.PRNGKey(0)
-> agent = PPO(total_timesteps=5e5, learning_rate=2.5e-3)
-> agent = agent.train(rng, env)
-> ```
+env = jym.make("CartPole-v1")
+key = jax.random.PRNGKey(0)
+
+algorithm = PPO(total_timesteps=500_000, learning_rate_start=2.5e-3)
+agent, metrics = algorithm.train(key, env)
+returns = agent.evaluate(key, env, num_eval_episodes=10)
+```
+
+`train` returns the trained agent alongside its training metrics: by default the mean
+return of the episodes that finished in each training iteration, one scalar per iteration
+(iterations without a finished episode yield `NaN`).
 
 ## 🏠 Environments
 
-Jaxnasium is not aimed at delivering a full environment suite. However, it does come equipped with a `jym.make(...)` command to import environments from existing suites (provided that these are installed) and wrap them appropriately to the Jaxnasium API standard. For example, using environments from Gymnax:
+Jaxnasium does not aim to deliver a full environment suite. Instead, `jym.make(...)` imports
+environments from existing suites (provided they are installed) and wraps them to the
+Jaxnasium API standard:
 
 ```python
-import jaxnasium as jym
-from jaxnasium.algorithms import PPO
-import jax
-
-env = jym.make("Breakout-MinAtar")
+env = jym.make("Breakout-MinAtar")  # from Gymnax
 env = jym.FlattenObservationWrapper(env)
-env = jym.LogWrapper(env)
 
-agent = PPO(**some_good_hyperparameters)
-agent = agent.train(jax.random.PRNGKey(0), env)
+algorithm = PPO(**some_good_hyperparameters)
+agent, metrics = algorithm.train(jax.random.PRNGKey(0), env)
 
 # > Using an environment from Gymnax via gymnax.make(Breakout-MinAtar).
 # > Wrapping Gymnax environment with GymnaxWrapper
-# >  Disable this behavior by passing wrapper=False
+# >  Control this behavior by passing wrappers=[...] to jym.make
 # > Wrapping environment in VecEnvWrapper
 # > ... training results
 ```
 
-!!!info 
-    For convenience, Jaxnasium does include the 5 [classic-control environments](https://gymnasium.farama.org/environments/classic_control/).
+By default `make` applies the adapter wrapper for the environment's library and a
+[`LogWrapper`](https://ponseko.github.io/jaxnasium/api/Wrappers/) for episode statistics; the algorithms add a
+`VecEnvWrapper` themselves when training.
 
-See the [Environments](./api/Available-Environments.md) page for a complete list of available environments.
+> For convenience, Jaxnasium bundles the 5 [classic-control environments](https://gymnasium.farama.org/environments/classic_control/), which need no external dependencies.
+
+See [Available Environments](https://ponseko.github.io/jaxnasium/api/Available-Environments/) for a complete list of available environments.
 
 ### Environment API
 
 The Jaxnasium API stays close to the *somewhat* established [Gymnax](https://github.com/RobertTLange/gymnax) API for the `reset()` and `step()` functions, but allows for truncated episodes in a manner closer to [Gymnasium](https://gymnasium.farama.org/).
 
 ```python
-env = jym.make(...)
-
-obs, env_state = env.reset(key) # <-- Mirroring Gymnax
+obs, env_state = env.reset(key)  # <-- Mirroring Gymnax
 
 # env.step(): Gymnasium Timestep tuple with state information
-(obs, reward, terminated, truncated, info), env_state = env.step(key, state, action)
+(obs, reward, terminated, truncated, info), env_state = env.step(key, env_state, action)
 ```
+
+Writing your own environment means subclassing [`jym.Environment`](https://ponseko.github.io/jaxnasium/api/Environment/) and
+implementing `step_env`, `reset_env`, `observation_space` and `action_space`.
 
 ## 🤖 Algorithms
 
-Algorithms in `jaxnasium.algorithms` are built following a near-single-file implementation philosophy in mind. In contrast to implementations in [CleanRL](https://github.com/vwxyzjn/cleanrl) or [PureJaxRL](https://github.com/luchris429/purejaxrl), Jaxnasium algorithms are built in Equinox and follow a class-based design with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3) API. 
+Algorithms in `jaxnasium.algorithms` follow a near-single-file implementation philosophy. In contrast to implementations in [CleanRL](https://github.com/vwxyzjn/cleanrl) or [PureJaxRL](https://github.com/luchris429/purejaxrl), Jaxnasium algorithms are built in Equinox and follow a class-based design with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3) API.
+
+Each algorithm is split into an **algorithm**, which holds the hyperparameters and the training
+logic, and the **agent**, holding the trainable state along with the trainer that produced it.
 
 ```python
-from jaxnasium.algorithms import PPO
-import jax
+agent, metrics = PPO(**some_good_hyperparameters).train(key, env)
 
-env = ...
-agent = PPO(**some_good_hyperparameters)
-agent = agent.train(jax.random.PRNGKey(0), env)
+agent.get_action(key, obs)                          # act
+agent, more_metrics = agent.train(key, env)         # keep training
+agent.save("ppo_agent.eqx")                         # checkpoint, trainer included
 ```
 
-See the [Algorithms](./algorithms/Algorithms.md) for more details on the included algorithms..
-
-## Available Algorithms
+Networks are configurable without touching the algorithm, observation and action spaces may
+be arbitrary PyTrees of spaces, and observation/reward normalization is built in and
+checkpointed with the agent. See [Algorithms](https://ponseko.github.io/jaxnasium/algorithms/Algorithms/) for the details.
 
 | Algorithm | Multi-Agent<sup>1</sup> | Observation Spaces | Action Spaces | Composite (nested) Spaces<sup>2</sup> |
 |-----------|-------------------------|-------------------|---------------|--------------------------------------|
@@ -114,9 +119,56 @@ See the [Algorithms](./algorithms/Algorithms.md) for more details on the include
 | **PQN**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Discrete`, `MultiDiscrete`<sup>3</sup> | ✅ |
 | **SAC**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Box`, `Discrete`, `MultiDiscrete` | ✅ |
 
-<sup>1</sup> All algorithms support automatic multi-agent transformation through the `auto_upgrade_multi_agent` parameter. See [Multi-Agent documentation](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/) for more information.
+<sup>1</sup> All algorithms support automatic multi-agent transformation through the `auto_upgrade_multi_agent` parameter. See [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/) for more information.
 
-<sup>2</sup> Algorithms support composite (nested) spaces. See [Spaces documentation](https://ponseko.github.io/jaxnasium/api/Spaces/) for more information.
+<sup>2</sup> Algorithms support composite (nested) spaces. See [Spaces](https://ponseko.github.io/jaxnasium/api/Spaces/) for more information.
 
 <sup>3</sup> MultiDiscrete action spaces in PQN and DQN are only supported when flattening to a Discrete action space. E.g. via the `FlattenActionSpaceWrapper`.
 
+## 👥 Multi-agent
+
+Multi-agent support is a **core pillar** of Jaxnasium's design rather than a separate API.
+Multi-agent Environments simply expose a PyTree of spaces whose first level is the agent dimension, and
+algorithms build one agent per entry automatically:
+
+```python
+env = jym.make("MPE_simple_spread_v3")  # a JaxMARL environment
+agent, metrics = PPO().train(key, env)  # one PPO agent per agent in the environment
+
+agent.get_action(key, obs)  # {"agent_0": ..., "agent_1": ..., ...}
+```
+
+Hyperparameters may even differ per agent, e.g. `PPO(gamma={"agent_0": 0.9, "agent_1": 0.99})`.
+See [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/).
+
+## 📊 Sweeps and evaluation
+
+`jaxnasium.eval` turns any function into a parameter sweep, and provides a standard
+train-and-evaluate trial for Jaxnasium algorithms. Jobs are addressed by index, so the same
+script runs locally in a loop or as a Slurm job array:
+
+```python
+from jaxnasium.eval import AlgorithmEvaluation, GridSearch, SobolSearch, Sweep
+
+sweep = Sweep(
+    AlgorithmEvaluation(jax.random.split(key, 10), batch_size=5, save_path="results/"),
+    GridSearch({"env": ["CartPole-v1", "Acrobot-v1"], "algorithm": ["PPO", "DQN"]}),
+    SobolSearch({"learning_rate_start": (1e-4, 1e-2, "log")}, num_samples=32, seed=key),
+)
+
+len(sweep)          # 2 envs * 2 algorithms * 32 learning rates
+result = sweep[0]()  # run one job
+```
+
+See [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) and [Searches](https://ponseko.github.io/jaxnasium/eval/Searches/).
+
+## Where to go next
+
+| | |
+| --- | --- |
+| [Environment](https://ponseko.github.io/jaxnasium/api/Environment/) · [Spaces](https://ponseko.github.io/jaxnasium/api/Spaces/) · [Wrappers](https://ponseko.github.io/jaxnasium/api/Wrappers/) | Build or adapt an environment |
+| [Algorithms](https://ponseko.github.io/jaxnasium/algorithms/Algorithms/) · [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/) | Train agents |
+| [Networks](https://ponseko.github.io/jaxnasium/algorithms/networks/Networks/) · [Architectures](https://ponseko.github.io/jaxnasium/algorithms/networks/Architectures/) | Swap in your own model |
+| [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) · [Searches](https://ponseko.github.io/jaxnasium/eval/Searches/) | Run experiments at scale |
+| [Compilation](https://ponseko.github.io/jaxnasium/api/Compilation/) | Ahead-of-time compilation and caching |
+| [Checkpointing](https://ponseko.github.io/jaxnasium/algorithms/core/Checkpointing/) · [Tree utilities](https://ponseko.github.io/jaxnasium/tree/Tree/) · [CLI](https://ponseko.github.io/jaxnasium/cli/) | Everything else |

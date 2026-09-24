@@ -1,18 +1,19 @@
 from abc import abstractmethod
-from typing import Generic, Tuple, TypeVar
+from typing import Any, Generic, TypeAlias
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, PRNGKeyArray, PyTree, PyTreeDef, Real
+from typing_extensions import TypeVar
 
 from ._spaces import Space
-from ._types import AgentObservation, TimeStep
+from ._types import TimeStep
 
 ORIGINAL_OBSERVATION_KEY = "_TERMINAL_OBSERVATION"
 
-TObservation = TypeVar("TObservation")
-TEnvState = TypeVar("TEnvState")
+Observation: TypeAlias = PyTree[Any]
+TEnvState = TypeVar("TEnvState", default=Any)
 
 
 class EnvState(eqx.Module):
@@ -43,7 +44,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         key: PRNGKeyArray,
         state: TEnvState,
         action: PyTree[Real[Array, "..."]],
-    ) -> Tuple[TimeStep, TEnvState]:
+    ) -> tuple[TimeStep, TEnvState]:
         """
         Steps the environment forward with the given action and performs auto-reset when necessary.
         Additionally, this function inserts the original observation (before auto-resetting) in
@@ -61,11 +62,12 @@ class Environment(eqx.Module, Generic[TEnvState]):
         - `action`: Action to take in the environment.
         """
 
-        timestep_step, state_step = self.step_env(key, state, action)
-        timestep, state = self.auto_reset(key, timestep_step, state_step)
+        step_key, reset_key = jax.random.split(key)
+        timestep_step, state_step = self.step_env(step_key, state, action)
+        timestep, state = self.auto_reset(reset_key, timestep_step, state_step)
         return timestep, state
 
-    def reset(self, key: PRNGKeyArray) -> Tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         """
         Resets the environment to an initial state and returns the initial observation.
         Environment-specific logic is defined in the `reset_env` method. Typically, this function
@@ -83,12 +85,12 @@ class Environment(eqx.Module, Generic[TEnvState]):
     @abstractmethod
     def step_env(
         self, key: PRNGKeyArray, state: TEnvState, action: PyTree[Real[Array, "..."]]
-    ) -> Tuple[TimeStep, TEnvState]:
+    ) -> tuple[TimeStep, TEnvState]:
         """
         Defines the environment-specific step logic. I.e. here the state of the environment is updated
         according to the transition function.
 
-        Returns a [`TimeStep`](.#timestep) object (observation, reward, terminated, truncated, info) and the new state.
+        Returns a [`TimeStep`](#timestep) object (observation, reward, terminated, truncated, info) and the new state.
 
         **Arguments:**
 
@@ -96,10 +98,9 @@ class Environment(eqx.Module, Generic[TEnvState]):
         - `state`: Current state of the environment.
         - `action`: Action to take in the environment.
         """
-        pass
 
     @abstractmethod
-    def reset_env(self, key: PRNGKeyArray) -> Tuple[TObservation, TEnvState]:  # pyright: ignore[reportInvalidTypeVarUse]
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         """
         Defines the environment-specific reset logic.
 
@@ -109,7 +110,6 @@ class Environment(eqx.Module, Generic[TEnvState]):
 
         - `key`: JAX PRNG key.
         """
-        pass
 
     @property
     @abstractmethod
@@ -119,7 +119,6 @@ class Environment(eqx.Module, Generic[TEnvState]):
         For multi-agent environments, this should be a PyTree of spaces.
         See [`jaxnasium.spaces`](Spaces.md) for more information on how to define (composite) action spaces.
         """
-        pass
 
     @property
     @abstractmethod
@@ -129,11 +128,10 @@ class Environment(eqx.Module, Generic[TEnvState]):
         For multi-agent environments, this should be a PyTree of spaces.
         See [`jaxnasium.spaces`](Spaces.md) for more information on how to define (composite) observation spaces.
         """
-        pass
 
     def auto_reset(
         self, key: PRNGKeyArray, timestep_step: TimeStep, state_step: TEnvState
-    ) -> Tuple[TimeStep, TEnvState]:
+    ) -> tuple[TimeStep, TEnvState]:
         """
         Auto-resets the environment when the episode is terminated or truncated.
 
@@ -166,15 +164,6 @@ class Environment(eqx.Module, Generic[TEnvState]):
         )
         obs = jax.tree.map(lambda x, y: jax.lax.select(done, x, y), obs_reset, obs_step)
 
-        # Insert the original observation in info to bootstrap correctly
-        try:  # removing possible action mask to lower the memory footprint
-            obs_step = jax.tree.map(
-                lambda o: o.observation,
-                obs_step,
-                is_leaf=lambda x: isinstance(x, AgentObservation),
-            )
-        except Exception:
-            pass
         info[ORIGINAL_OBSERVATION_KEY] = obs_step
 
         return TimeStep(obs, reward, terminated, truncated, info), state
@@ -189,7 +178,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         keys = jax.tree.unflatten(structure, keys)
         return jax.tree.map(lambda space, k: space.sample(k), self.action_space, keys)
 
-    def sample_observation(self, key: PRNGKeyArray) -> TObservation:  # pyright: ignore[reportInvalidTypeVarUse]
+    def sample_observation(self, key: PRNGKeyArray) -> Observation:
         """
         Convenience method to sample a random observation from the environment's observation space.
         While one could use `self.observation_space.sample(key)`, this method additionally works
@@ -209,7 +198,7 @@ class Environment(eqx.Module, Generic[TEnvState]):
         Infers this via the `_multi_agent` property. If not set, assumes single-agent.
         """
         if hasattr(self, "_multi_agent"):
-            return self._multi_agent
+            return self._multi_agent  # type: ignore
         return False
 
     @property

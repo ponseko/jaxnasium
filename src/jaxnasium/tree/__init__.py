@@ -1,36 +1,43 @@
-try:
-    from ._tree import (
-        tree_batch_sum as tree_batch_sum,
-        tree_concatenate as tree_concatenate,
-        tree_gather_actions as tree_gather_actions,
-        tree_get_first as tree_get_first,
-        tree_map_distribution as tree_map_distribution,
-        tree_map_one_level as tree_map_one_level,
-        tree_mean as tree_mean,
-        tree_stack as tree_stack,
-        tree_unstack as tree_unstack,
-    )
+from ._tree import (
+    tree_add as add,
+    tree_batch_mean as batch_mean,
+    tree_batch_sum as batch_sum,
+    tree_clip as clip,
+    tree_concatenate as concatenate,
+    tree_gather_actions as gather_actions,
+    tree_get_first as get_first,
+    tree_map_distribution as map_distribution,
+    tree_map_one_level as map_one_level,
+    tree_mean as mean,
+    tree_mul as mul,
+    tree_ones_like as ones_like,
+    tree_ravel as ravel,
+    tree_split_key_like as split_key_like,
+    tree_split_key_like_structure as split_key_like_structure,
+    tree_stack as stack,
+    tree_sum as sum,
+    tree_unstack as unstack,
+    tree_zeros_like as zeros_like,
+)
 
-    batch_sum = tree_batch_sum
-    get_first = tree_get_first
-    gather_actions = tree_gather_actions
-    map_one_level = tree_map_one_level
-    mean = tree_mean
-    stack = tree_stack
-    unstack = tree_unstack
-    concatenate = tree_concatenate
-    map_distribution = tree_map_distribution
-
-    __all__ = [
-        "get_first",
-        "map_one_level",
-        "mean",
-        "stack",
-        "unstack",
-        "concatenate",
-        "map_distribution",
-    ]
-except ImportError:
-    print(
-        "Jaxnasium.tree module requires `optax` to be installed. Please install via `pip install optax`."
-    )
+__all__ = [
+    "add",
+    "batch_mean",
+    "batch_sum",
+    "clip",
+    "concatenate",
+    "gather_actions",
+    "get_first",
+    "map_distribution",
+    "map_one_level",
+    "mean",
+    "mul",
+    "ones_like",
+    "ravel",
+    "split_key_like",
+    "split_key_like_structure",
+    "stack",
+    "sum",
+    "unstack",
+    "zeros_like",
+]

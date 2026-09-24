@@ -1,0 +1,74 @@
+# Registry for `create-rl-app` cli usage. A list of files to scaffold.
+
+# Single files
+# [file.<name>]
+# options:
+#   source: path relative from this package
+#   dest: (optional) override default destination
+#   description: (optional) helper description
+#   name: (optional) name override
+#   on_exists: handling if file destination exists ("error"/"skip") (defaults to "error").
+
+[file.bronet]
+source = "algorithms/architectures/bronet.py"
+dest = "bronet.py"
+description = "BroNet residual MLP architecture (Equinox)."
+name = "bronet"
+
+[file.cnn]
+source = "algorithms/architectures/cnn.py"
+dest = "cnn.py"
+description = "Nature-DQN style CNN architecture (Equinox)."
+
+[file.mlp]
+source = "algorithms/architectures/mlp.py"
+dest = "mlp.py"
+description = "Simple MLP architecture (Equinox)."
+
+[file.sweep]
+source = "cli/_resources/sweep_template.py"
+dest = "sweep.py"
+description = "Scaffold a small example multi-environment, multi-algorithm hyperparameter random search."
+
+# Bundles of files to scaffold as a group
+# [bundle.<name>]
+# options:
+#   files: list of files with source location, destination location and on_exists handling (error/skip).
+#   description: (optional) helper description
+#   name: (optional) name override
+
+[bundle.starter]
+description = "Training script + example environment to get started."
+files = [
+    { source = "cli/_resources/train_template.py", dest = "train.py" },
+    { source = "cli/_resources/env_template.py", dest = "example_env.py" },
+]
+
+[bundle.ppo]
+description = "Jaxnasium ppo implementation"
+files = [
+    { source = "algorithms/ppo.py" , dest = "ppo.py" },
+    { source = "algorithms/agent_networks.py" , dest = "agent_networks.py", on_exists = "skip" },
+]
+
+[bundle.sac]
+description = "Jaxnasium dqn implementation"
+files = [
+    { source = "algorithms/sac.py" , dest = "sac.py" },
+    { source = "algorithms/agent_networks.py" , dest = "agent_networks.py", on_exists = "skip" },
+]
+
+[bundle.dqn]
+description = "Jaxnasium dqn implementation"
+files = [
+    { source = "algorithms/dqn.py" , dest = "dqn.py" },
+    { source = "algorithms/agent_networks.py" , dest = "agent_networks.py", on_exists = "skip" },
+]
+
+[bundle.pqn]
+description = "Jaxnasium pqn implementation"
+files = [
+    { source = "algorithms/pqn.py" , dest = "pqn.py" },
+    { source = "algorithms/agent_networks.py" , dest = "agent_networks.py", on_exists = "skip" },
+]
+

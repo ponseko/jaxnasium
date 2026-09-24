@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -47,7 +45,7 @@ class CartPole(Environment[EnvState]):
 
     def step_env(
         self, key: PRNGKeyArray, state: EnvState, action: int
-    ) -> Tuple[TimeStep, EnvState]:
+    ) -> tuple[TimeStep, EnvState]:
         force = self.force_mag * action - self.force_mag * (1 - action)
         costheta = jnp.cos(state.theta)
         sintheta = jnp.sin(state.theta)
@@ -83,7 +81,7 @@ class CartPole(Environment[EnvState]):
 
         return timestep, state
 
-    def reset_env(self, key: PRNGKeyArray) -> Tuple[Array, EnvState]:
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Array, EnvState]:
         state_variables = jax.random.uniform(key, shape=(4,), minval=-0.05, maxval=0.05)
         state = EnvState(
             x=state_variables[0],
@@ -113,7 +111,7 @@ class CartPole(Environment[EnvState]):
 
     @property
     def observation_space(self) -> Box:
-        high = jnp.array(
+        high = np.array(
             [
                 self.x_threshold * 2,
                 np.finfo(jnp.float32).max,

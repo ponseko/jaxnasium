@@ -5,7 +5,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Int, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, DTypeLike, Int, PRNGKeyArray
 
 
 class Space(ABC):
@@ -44,14 +44,11 @@ class Space(ABC):
     """
 
     shape: eqx.AbstractVar[tuple[int, ...]]
+    dtype: eqx.AbstractVar[DTypeLike]
 
     @abstractmethod
     def sample(self, rng: PRNGKeyArray) -> Array:
         pass
-
-    # @abstractmethod  # NOTE: Do we need this?
-    # def contains(self, x: int) -> bool:
-    #     pass
 
 
 @dataclass
@@ -67,28 +64,78 @@ class Box(Space):
     - `dtype`: The data type of the space. Default is jnp.float32.
     """
 
-    low: float | Array = eqx.field(converter=np.asarray, default=0.0)
-    high: float | Array = eqx.field(converter=np.asarray, default=1.0)
+    low: float | ArrayLike = 0.0
+    high: float | ArrayLike = 1.0
     shape: tuple[int, ...] = ()
-    dtype: type = jnp.float32
+    dtype: DTypeLike = jnp.float32
 
     def __post_init__(self):
+        object.__setattr__(self, "low", np.asarray(self.low))
+        object.__setattr__(self, "high", np.asarray(self.high))
         if not isinstance(self.shape, tuple):
-            self.shape = (self.shape,)
+            object.__setattr__(self, "shape", (self.shape,))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Box):
+            return NotImplemented
+        return (
+            self.shape == other.shape
+            and np.dtype(self.dtype) == np.dtype(other.dtype)
+            and np.array_equal(self.low, other.low)
+            and np.array_equal(self.high, other.high)
+        )
+
+    def __hash__(self) -> int:
+        return hash((Box, self.shape, np.dtype(self.dtype)))
 
     def sample(self, rng: PRNGKeyArray) -> Array:
-        """Sample random action uniformly from set of continuous choices."""
+        """Sample a random element of the space.
+
+        As is the case in Gymnasium, floating dtypes are sampled differently based
+        on the bounds of this space.
+        If fully bounded, we sample uniformly, unbounded spaces are sampled with a gaussian,
+        and spaces bounded from below or above are sampled from '`low` + exponential' or
+        '`high` - exponential' respectively
+        """
         low = self.low
         high = self.high
         if jnp.isdtype(self.dtype, "real floating"):
-            return jax.random.uniform(
-                rng, shape=self.shape, minval=low, maxval=high, dtype=self.dtype
-            ).squeeze()
+            low = jnp.broadcast_to(jnp.asarray(low, self.dtype), self.shape)
+            high = jnp.broadcast_to(jnp.asarray(high, self.dtype), self.shape)
+
+            bounded_below = low > jnp.finfo(self.dtype).min
+            bounded_above = high < jnp.finfo(self.dtype).max
+            fully_bounded = bounded_below & bounded_above
+
+            uniform_key, exp_key, normal_key = jax.random.split(rng, 3)
+            uniform = jax.random.uniform(
+                uniform_key,
+                shape=self.shape,
+                minval=jnp.where(fully_bounded, low, 0.0),
+                maxval=jnp.where(fully_bounded, high, 1.0),
+                dtype=self.dtype,
+            )
+            exponential = jax.random.exponential(exp_key, self.shape, self.dtype)
+            normal = jax.random.normal(normal_key, self.shape, self.dtype)
+
+            return jnp.select(
+                [
+                    fully_bounded,
+                    bounded_below,
+                    bounded_above,
+                ],
+                [
+                    uniform,
+                    jnp.where(bounded_below, low, 0.0) + exponential,
+                    jnp.where(bounded_above, high, 0.0) - exponential,
+                ],
+                default=normal,
+            ).astype(self.dtype)
         if jnp.isdtype(self.dtype, "bool"):
-            self.dtype = jnp.int8
+            return jax.random.bernoulli(rng, 0.5, shape=self.shape)
         return jax.random.randint(
             rng, shape=self.shape, minval=low, maxval=high, dtype=self.dtype
-        ).squeeze()
+        )
 
 
 @dataclass
@@ -103,10 +150,10 @@ class Discrete(Space):
     """
 
     n: int
-    dtype: type
+    dtype: DTypeLike
     shape: tuple[int, ...] = ()
 
-    def __init__(self, n: int, dtype: type = jnp.int32):
+    def __init__(self, n: int, dtype: DTypeLike = jnp.int32):
         self.n = n
         self.dtype = dtype
 
@@ -129,19 +176,33 @@ class MultiDiscrete(Space):
     **Arguments:**
 
     - `nvec` (Array[int]): The number of discrete actions for each dimension.
-    - `dtype`: The data type of the space. Default is jnp.int16.
+    - `dtype`: The data type of the space. Default is jnp.int32.
     """
 
-    nvec: Int[Array | np.ndarray, " num_actions"]
-    dtype: type
+    nvec: Int[ArrayLike, " num_actions"]
+    dtype: DTypeLike
     shape: tuple[int, ...]
 
     def __init__(
-        self, nvec: Int[Array | np.ndarray, " num_actions"], dtype: type = jnp.int32
+        self,
+        nvec: Int[ArrayLike, " num_actions"],
+        dtype: DTypeLike = jnp.int32,
     ):
         self.nvec = nvec
         self.dtype = dtype
-        self.shape = (len(nvec),)
+        self.shape = (len(np.asarray(nvec).tolist()),)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MultiDiscrete):
+            return NotImplemented
+        return (
+            self.shape == other.shape
+            and np.dtype(self.dtype) == np.dtype(other.dtype)
+            and np.array_equal(self.nvec, other.nvec)
+        )
+
+    def __hash__(self) -> int:
+        return hash((MultiDiscrete, self.shape, np.dtype(self.dtype)))
 
     def sample(self, rng: PRNGKeyArray) -> Int[Array, ""]:
         """Sample random action uniformly from set of discrete choices."""

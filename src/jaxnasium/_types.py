@@ -1,9 +1,10 @@
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Self
 
+import equinox as eqx
 from jaxtyping import Array, Bool, Float, Num, PyTree
 
 
-class AgentObservation(NamedTuple):
+class AgentObservation(eqx.Module):
     """A container for the observation of a **single** agent, with optional action masking.
 
     Typically, this container is optional. However, Algorithms in
@@ -14,10 +15,28 @@ class AgentObservation(NamedTuple):
 
     - `observation`: The observation of the agent.
     - `action_mask`: The action mask of the agent. A boolean array of the same shape as the action space.
+    - `critic_observation`: Optional observation of the critic for the agent. when not provided, the regular observation is used.
+     This may be used for CTDE (like) approaches.
     """
 
     observation: Num[Array, "..."] | PyTree[Bool[Array, "..."]]
-    action_mask: Optional[Bool[Array, "..."] | PyTree[Bool[Array, "..."]]] = None
+    action_mask: Bool[Array, "..."] | PyTree[Bool[Array, "..."]] | None = None
+    critic_observation: Num[Array, "..."] | PyTree[Num[Array, "..."]] | None = None
+
+    def replace(self, **updates) -> Self:
+        keys, values = zip(*updates.items())
+        return eqx.tree_at(
+            lambda c: [c.__dict__[key] for key in keys],
+            self,
+            values,
+            is_leaf=lambda x: x is None,
+        )
+
+    @property
+    def critic_input(self) -> Num[Array, "..."] | PyTree[Num[Array, "..."]]:
+        if self.critic_observation is not None:
+            return self.critic_observation
+        return self.observation
 
 
 class TimeStep(NamedTuple):

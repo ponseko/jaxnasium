@@ -39,10 +39,10 @@
 <td>✅</td>
 </tr>
 <tr>
-<td colspan="5"><em><sup>1</sup> All algorithms support automatic multi-agent transformation through the <code>auto_upgrade_multi_agent</code> parameter</em>. See <a href="../Multi-Agent/">Multi-Agent</a> for more information.</td>
+<td colspan="5"><em><sup>1</sup> All algorithms support automatic multi-agent transformation through the <code>auto_upgrade_multi_agent</code> parameter</em>. See <a href="https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/">Multi-Agent</a> for more information.</td>
 </tr>
 <tr>
-<td colspan="5"><em><sup>2</sup> Algorithms support composite (nested) spaces. See <a href="../../api/Spaces/">Spaces</a> for more information.</td>
+<td colspan="5"><em><sup>2</sup> Algorithms support composite (nested) spaces. See <a href="https://ponseko.github.io/jaxnasium/api/Spaces/">Spaces</a> for more information.</td>
 </tr>
 <tr>
 <td colspan="5"><em><sup>3</sup> MultiDiscrete action spaces in PQN and DQN are only supported when flattening to a Discrete action space. E.g. via the <code>FlattenActionSpaceWrapper</code>.</em></td>

@@ -1,10 +1,8 @@
-from typing import Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, PRNGKeyArray
+from jaxtyping import Array, Float, PRNGKeyArray
 
 from jaxnasium._environment import Environment, TimeStep
 from jaxnasium._registry import registry
@@ -31,13 +29,14 @@ class Pendulum(Environment[EnvState]):
     dt: float = 0.05
     g: float = 10.0
     m: float = 1.0
-    l: float = 1.0  # noqa: E741
+    l: float = 1.0  # noqa: E741!
 
     max_episode_steps: int = 200
 
     def step_env(
-        self, key: PRNGKeyArray, state: EnvState, action: int
-    ) -> Tuple[TimeStep, EnvState]:
+        self, key: PRNGKeyArray, state: EnvState, action: Float[Array, ""]
+    ) -> tuple[TimeStep, EnvState]:
+        action = action[0]
         u = jnp.clip(action, -self.max_torque, self.max_torque)
         costs = (
             self.angle_normalize(state.theta) ** 2
@@ -72,7 +71,7 @@ class Pendulum(Environment[EnvState]):
 
         return timestep, state
 
-    def reset_env(self, key: PRNGKeyArray) -> Tuple[Array, EnvState]:
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Array, EnvState]:
         high = jnp.array([DEFAULT_X, DEFAULT_Y])
         state_variables = jax.random.uniform(key, shape=(2,), minval=-high, maxval=high)
         state = EnvState(
@@ -100,7 +99,7 @@ class Pendulum(Environment[EnvState]):
 
     @property
     def observation_space(self) -> Box:
-        high = jnp.array([1.0, 1.0, self.max_speed])
+        high = np.array([1.0, 1.0, self.max_speed])
         return Box(
             low=-high,
             high=high,

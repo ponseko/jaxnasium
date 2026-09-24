@@ -1,6 +1,6 @@
 [project]
 name = "jaxnasium"
-version = "0.0.29"
+version = "0.1.0"
 description = "A lightweight utility library for reinforcement learning projects in JAX and Equinox."
 readme = "README.md"
 authors = [
@@ -8,26 +8,26 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "create-rl-app>=0.0.2",
+    "create-rl-app>=0.1.0",
     "equinox>=0.12.1,!=0.13.3",
-    "jax>=0.5.2,!=0.7.0,!=0.7.1",
+    "jax>=0.5.2,!=0.7.*,!=0.9.*",
 ]
 
 [project.optional-dependencies]
 algs = [
-    "distrax>=0.1.5",
+    "distrax>=0.1.7",
     "optax>=0.2.4",
 ]
 gpu = [
-    "jax[cuda]>=0.5.2,!=0.7.0,!=0.7.1"
+    "jax[cuda]"
 ]
 
 [build-system]
-requires = ["uv_build>=0.8.14,<0.9.0"]
+requires = ["uv_build>=0.12.12,<0.13"]
 build-backend = "uv_build"
 
 [project.scripts]
-jaxnasium = "jaxnasium.cli.init:main"
+jaxnasium = "create_rl_app.main:main"
 
 [dependency-groups]
 dev = [
@@ -35,18 +35,48 @@ dev = [
     "ruff>=0.11.0",
     "pre-commit>=4.2.0",
     "tqdm>=4.67.1",
-    "distrax>=0.1.5",
+    "distrax>=0.1.7",
     "optax>=0.2.4",
     "mkdocs-material>=9.6.13",
     "mkdocstrings[python]>=0.29.1",
 ]
+external = [
+    "brax==0.14.2",
+    "gym==0.26.2",
+    "gymnax==0.0.9",
+    "jumanji==1.1.1",
+    "navix==0.7.4",
+    "octax==0.1.1",
+    "pgx==2.6.0",
+    "xminigrid==0.9.3",
+    "jaxmarl==0.2.0",
+    "playground==0.2.0",
+    "envpool==1.2.5,!=1.2.6",
+    "popjym",
+    "rice_jax",
+    "chargax",
+    "econojax",
+]
+
+[tool.uv.sources]
+create-rl-app = { git = "https://github.com/ponseko/create-rl-app.git", branch = "v1" } 
+popjym = { git = "https://github.com/FLAIROx/popjym" }
+rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", branch = "GAIA_jax", subdirectory="rice_jax" }
+chargax = { git = "https://github.com/ponseko/chargax" }
+econojax = { git = "https://github.com/ponseko/econojax" }
 
 [tool.ruff.format]
 docstring-code-format = true
+docstring-code-line-length = 80
 
 [tool.ruff.lint]
 extend-select = ["I"]
-ignore = ["F722", "E731"]
+ignore = ["F722", "E731", "B008", "BLE001", "S110", "RUF009", "S112"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/jaxnasium/algorithms/*" = ["PLW0642"]
+"src/jaxnasium/envs/pendulum.py" = ["E741"]
+"src/jaxnasium/cli/*" = ["RUF059", "F401"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -55,4 +85,13 @@ combine-as-imports = true
 venvPath = "."
 venv = ".venv"
 include = ["src", "tests"]
-exclude = ["src/jaxnasium/cli/*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "learn: full algorithm training loops",
+    "external: smoke tests for third-party env packages",
+    "cli: test the create-rl-app cli tooling",
+    "saving_loading: test_saving_loading seperated due to higher python requirement"
+]
+testpaths = ["tests"]
+addopts = "-m 'not learn and not external and not saving_loading'"

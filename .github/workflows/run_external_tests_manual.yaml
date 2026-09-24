@@ -1,0 +1,28 @@
+name: Run Manual External Test
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+
+  test-external-manual:
+    if: github.event.label.name == 'run-external-tests'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --group dev --extra algs --group external
+
+      - name: Run external tests
+        run: uv run --no-sync pytest -m "external" -v -s

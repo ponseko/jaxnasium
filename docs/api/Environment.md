@@ -1,6 +1,8 @@
-::: src.jaxnasium.Environment 
-    options: 
-        members: 
+# Environment
+
+::: jaxnasium.Environment
+    options:
+        members:
             - step
             - step_env
             - reset
@@ -15,12 +17,18 @@
 
 ## Timestep
 
-::: src.jaxnasium.TimeStep
+::: jaxnasium.TimeStep
+    options:
+        members: false
+
+## Environment state
+
+::: jaxnasium.EnvState
     options:
         members: false
 
 ## Observation container (optional)
 
-::: src.jaxnasium.AgentObservation
+::: jaxnasium.AgentObservation
     options:
         members: false

@@ -1,13 +1,14 @@
-"""Tests for DistraxContainer and _transpose_tree_of_tuples."""
-
 import distrax
 import jax
 import jax.numpy as jnp
 
-from jaxnasium.algorithms.utils._distributions import (
+from jaxnasium.algorithms.core._distributions import (
     DistraxContainer,
-    _transpose_tree_of_tuples,
+    EpsilonGreedy,
+    TanhNormal,
+    TanhNormalFactory,
 )
+from jaxnasium.tree._tree import _transpose_tree_of_tuples
 
 SEED = jax.random.PRNGKey(0)
 
@@ -155,7 +156,7 @@ class TestDistraxContainerNestedDict:
             "group2": jnp.array(2.0),
         }
         lp = self.container.log_prob(value)
-        assert isinstance(lp["group1"], dict)  # pyright: ignore[reportIndexIssue]
+        assert isinstance(lp["group1"], dict)  # type: ignore
 
 
 class TestDistraxContainerTupleStructure:
@@ -180,3 +181,93 @@ class TestDistraxContainerTupleStructure:
     def test_log_prob(self):
         lp = self.container.log_prob((jnp.array(0.0), jnp.array(1.0)))
         assert isinstance(lp, tuple) and len(lp) == 2
+
+
+def test_samples_within_default_bounds():
+    dist = TanhNormal(mean=jnp.zeros((4,)), std=jnp.ones((4,)))
+    samples = dist.sample(seed=SEED, sample_shape=(1000,))
+    assert samples.shape == (1000, 4)
+    # Default shift=0, scale=1 -> support is (-1, 1).
+    assert jnp.all(samples > -1.0)
+    assert jnp.all(samples < 1.0)
+
+
+def test_mode_matches_shifted_scaled_tanh():
+    mean = jnp.array([0.5, -1.0, 0.0])
+    dist = TanhNormal(mean=mean, std=jnp.ones((3,)), shift=1.0, scale=2.0)
+    assert jnp.allclose(dist.mode(), 1.0 + 2.0 * jnp.tanh(mean))
+
+
+def test_batch_and_event_shape():
+    dist = TanhNormal(mean=jnp.zeros((4,)), std=jnp.ones((4,)))
+    assert dist.batch_shape == (4,)
+    assert dist.event_shape == ()
+
+
+def test_factory_sets_shift_and_scale_from_bounds():
+    low, high = -3.0, 5.0
+    factory = TanhNormalFactory(low, high)
+    dist = factory(mean=jnp.zeros((2,)), std=jnp.ones((2,)))
+    assert isinstance(dist, TanhNormal)
+    # scale = (high - low) / 2, shift = (high + low) / 2
+    assert jnp.allclose(dist._scale, 4.0)
+    assert jnp.allclose(dist._shift, 1.0)
+
+
+def test_factory_samples_within_bounds():
+    low, high = -3.0, 5.0
+    factory = TanhNormalFactory(low, high)
+    dist = factory(mean=jnp.zeros((3,)), std=jnp.ones((3,)))
+    samples = dist.sample(seed=SEED, sample_shape=(1000,))
+    assert jnp.all(samples > low)
+    assert jnp.all(samples < high)
+
+
+_PREFS = jnp.array([1.0, 5.0, 2.0, 3.0])
+
+
+def test_epsilon_greedy_masked_actions_get_zero_probability():
+    mask = jnp.array([False, True, True, False])
+    for epsilon in (0.0, 0.5, 1.0):
+        probs = EpsilonGreedy(
+            _PREFS, epsilon=epsilon, action_mask=mask
+        ).distributions.probs
+        assert jnp.allclose(probs[0], 0.0), epsilon
+        assert jnp.allclose(probs[3], 0.0), epsilon
+        assert jnp.allclose(probs.sum(), 1.0), epsilon
+
+
+def test_epsilon_greedy_explores_uniformly_over_valid_actions():
+    mask = jnp.array([False, True, True, False])
+    probs = EpsilonGreedy(_PREFS, epsilon=1.0, action_mask=mask).distributions.probs
+    assert jnp.allclose(probs, jnp.array([0.0, 0.5, 0.5, 0.0]))
+
+
+def test_epsilon_greedy_is_greedy_over_valid_actions_only():
+    """The argmax must avoid a masked action even if it has the highest preference."""
+    mask = jnp.array([True, False, True, True])  # index 1 is the unmasked argmax
+    probs = EpsilonGreedy(_PREFS, epsilon=0.0, action_mask=mask).distributions.probs
+    assert jnp.allclose(probs, jnp.array([0.0, 0.0, 0.0, 1.0]))  # next best is index 3
+
+
+def test_epsilon_greedy_all_masked_falls_back_to_uniform():
+    mask = jnp.zeros((4,), dtype=bool)
+    for epsilon in (0.0, 0.5, 1.0):
+        probs = EpsilonGreedy(
+            _PREFS, epsilon=epsilon, action_mask=mask
+        ).distributions.probs
+        assert jnp.all(jnp.isfinite(probs)), epsilon
+        assert jnp.allclose(probs, 0.25), epsilon
+
+
+def test_epsilon_greedy_mask_supports_pytree_action_spaces():
+    prefs = {"a": jnp.array([1.0, 5.0]), "b": jnp.array([2.0, 0.0, 1.0])}
+    masks = {"a": jnp.array([True, False]), "b": jnp.array([False, True, True])}
+    dist = EpsilonGreedy(prefs, epsilon=1.0, action_mask=masks)
+    probs = jax.tree.map(
+        lambda d: d.probs,
+        dist.distributions,
+        is_leaf=lambda x: isinstance(x, distrax.Distribution),
+    )
+    assert jnp.allclose(probs["a"], jnp.array([1.0, 0.0]))
+    assert jnp.allclose(probs["b"], jnp.array([0.0, 0.5, 0.5]))

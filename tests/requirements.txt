@@ -1,6 +1,6 @@
 pytest
 gymnax==0.0.9
-brax==0.13.0
+brax==0.14.2
 gym==0.26.2
 jumanji==1.1.1
 econojax @ git+https://github.com/ponseko/econojax
@@ -8,7 +8,11 @@ jax==0.6.2
 rice_jax @ git+https://github.com/mila-iqia/climate-cooperation-competition@GAIA_jax#subdirectory=rice_jax
 chargax @ git+https://github.com/ponseko/chargax
 pgx==2.6.0
-# jaxmarl==0.1.0
+jaxmarl==0.2.0
 xminigrid==0.9.1
 craftax==1.5.0
 navix==0.7.3
+jaxon==2.0.0
+envpool==1.2.6
+popjym @ git+https://github.com/FLAIROx/popjym
+playground==0.2.0

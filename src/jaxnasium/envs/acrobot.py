@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -44,7 +42,7 @@ class Acrobot(Environment[EnvState]):
 
     def step_env(
         self, key: PRNGKeyArray, state: EnvState, action: int
-    ) -> Tuple[TimeStep, EnvState]:
+    ) -> tuple[TimeStep, EnvState]:
         torque = self.avail_torque[action]
 
         # Add noise to the force action
@@ -87,7 +85,7 @@ class Acrobot(Environment[EnvState]):
 
         return timestep, state
 
-    def reset_env(self, key: PRNGKeyArray) -> Tuple[Array, EnvState]:
+    def reset_env(self, key: PRNGKeyArray) -> tuple[Array, EnvState]:
         state_variables = jax.random.uniform(key, shape=(4,), minval=-0.1, maxval=0.1)
         state = EnvState(
             joint_angle1=state_variables[0],
@@ -129,7 +127,7 @@ class Acrobot(Environment[EnvState]):
 
     @property
     def observation_space(self) -> Box:
-        high = jnp.array([1.0, 1.0, 1.0, 1.0, self.max_vel_1, self.max_vel_2])
+        high = np.array([1.0, 1.0, 1.0, 1.0, self.max_vel_1, self.max_vel_2])
         return Box(
             low=-high,
             high=high,
