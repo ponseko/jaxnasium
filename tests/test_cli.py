@@ -7,7 +7,14 @@ import pytest
 JAXNASIUM_ROOT = Path(__file__).resolve().parents[1]
 
 
-pytestmark = pytest.mark.cli
+# Skip the tests in the release workflow
+pytestmark = [
+    pytest.mark.cli,
+    pytest.mark.skipif(
+        not (JAXNASIUM_ROOT / "src" / "jaxnasium" / "__init__.py").is_file(),
+        reason="jaxnasium source tree not available",
+    ),
+]
 
 
 @pytest.fixture(scope="session")
