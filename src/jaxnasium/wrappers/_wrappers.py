@@ -798,7 +798,7 @@ def _stack_action_masks(space_tree: PyTree[Space], mask_tree: PyTree) -> PyTree[
         rows = [jnp.reshape(m, (-1, m.shape[-1])) for m in members]
         stacked.append(jnp.concatenate(rows, axis=0))
 
-    return stacked[0] if len(stacked) == 1 else tuple(stacked)
+    return stacked[0] if len(stacked) == 1 else list(stacked)
 
 
 def _stack_mask_spaces(space_tree: PyTree[Space], _=None) -> PyTree[Box]:
