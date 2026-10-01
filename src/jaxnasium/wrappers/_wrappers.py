@@ -783,7 +783,7 @@ def _stack_action_space(space_tree: PyTree[Space]) -> PyTree[Space]:
         nvec = [n for s in members for n in _actions_per_dimension(s, error=True)]
         stacked.append(MultiDiscrete(nvec=np.array(nvec), dtype=members[0].dtype))
 
-    return stacked[0] if len(stacked) == 1 else tuple(stacked)
+    return stacked[0] if len(stacked) == 1 else list(stacked)
 
 
 def _stack_action_masks(space_tree: PyTree[Space], mask_tree: PyTree) -> PyTree[Array]:
