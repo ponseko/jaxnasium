@@ -85,6 +85,7 @@ class RLAlgorithm(eqx.Module):
         agent: RLAgent,
         env: Environment,
         num_eval_episodes: int = 10,
+        deterministic_policy: bool = True,
     ) -> Float[Array, " num_eval_episodes"]:
         """`num_eval_episodes` over the environment with the provided agent.
 
@@ -107,7 +108,9 @@ class RLAlgorithm(eqx.Module):
                 episode_reward, rng, obs, env_state, done = carry
                 rng, action_key, step_key = jax.random.split(rng, 3)
 
-                action = agent.get_action(action_key, obs, deterministic=True)
+                action = agent.get_action(
+                    action_key, obs, deterministic=deterministic_policy
+                )
                 (obs, reward, terminated, truncated, _info), env_state = env.step(
                     step_key, env_state, action
                 )
@@ -306,9 +309,15 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
 
     @collective
     def evaluate(
-        self, key: PRNGKeyArray, env: Environment, num_eval_episodes: int = 10
+        self,
+        key: PRNGKeyArray,
+        env: Environment,
+        num_eval_episodes: int = 10,
+        deterministic_policy: bool = True,
     ) -> Float[Array, " num_eval_episodes"]:
-        return self.trainer.evaluate(key, self, env, num_eval_episodes)
+        return self.trainer.evaluate(
+            key, self, env, num_eval_episodes, deterministic_policy=deterministic_policy
+        )
 
     @collective
     def save(self, file_path: str):
