@@ -25,31 +25,60 @@ See the end of this page for a full list of available environments.
 These are not bundled as dependencies and need to be installed manually (e.g. via `pip`) before use.
 
 ### [Gymnax](https://github.com/RobertTLange/gymnax)
+
 JAX implementations of OpenAI's Gym environments, offering accelerated and parallelized rollouts. Includes classic control, bsuite, and MinAtar environments.
 
 ### [Jumanji](https://github.com/instadeepai/jumanji)
+
 A suite of diverse, scalable reinforcement learning environments implemented in JAX by DeepMind. Focuses on combinatorial problems and general decision-making tasks.
 
 ### [Brax](https://github.com/google/brax)
+
 A fast and flexible physics simulation engine for training and evaluating rigid body environments in JAX by Google.
 
+### [Crax](https://github.com/TTomilin/CRAX)
+
+A GPU-accelerated benchmark and algorithm suite for Safe RL, built as a fork of Brax.
+Alongside the reward, every environment reports a `cost` signal in the timestep `info`.
+
+The safety suites are parameterised by a difficulty level; jaxnasium defaults to the
+easiest, so pass `level` for the harder variants:
+
+```python
+env = jym.make("safe_lift_ant", level=3)
+```
+
+### [Playground](https://github.com/google-deepmind/mujoco_playground)
+
+MuJoCo Playground by DeepMind: MJX-accelerated robotics environments, spanning the DM Control Suite, locomotion tasks for a range of quadrupeds and humanoids, and dexterous manipulation.
+
 ### [Pgx](https://github.com/sotetsuk/pgx)
+
 JAX implementations of various board games and classic environments, including chess, Go, shogi, and more.
 
 ### [JaxMARL](https://github.com/FLAIROx/JaxMARL)
+
 Multi-agent reinforcement learning environments implemented in JAX, including MPE (Multi-Particle Environment) scenarios and other multi-agent tasks.
 
 ### [xMinigrid](https://github.com/dunnolab/xland-minigrid)
+
 JAX implementation of MiniGrid environments, including XLand variants for procedural generation research.
 
 ### [Navix](https://github.com/epignatelli/navix)
+
 JAX implementation of navigation environments, providing various gridworld navigation tasks.
 
 ### [Octax](https://github.com/riiswa/octax)
+
 JAX CHIP-8 emulator environments (Brix, Pong, Tetris, and other classic games).
 
 ### [Craftax](https://github.com/MichaelTMatthews/Craftax)
+
 JAX implementation of Craftax environments, inspired by Minecraft-like crafting and survival tasks.
+
+### [PopJym](https://github.com/FLAIROx/popjym)
+
+JAX implementation of POPGym, a suite of partially observable environments. Generally requires a recurrent or memory-based policy.
 
 ## Usage
 
@@ -76,20 +105,15 @@ By default, `make` applies the wrapper for the environment's library (translatin
 Jaxnasium API) and a [`LogWrapper`](Wrappers.md). Pass `wrappers=[...]` to control this.
 
 ::: jaxnasium._registry.Registry
-    options:
-        heading_level: 3
-        members:
-            - make
-            - register
-            - register_alias
-            - registered_envs
-            - print_envs
+options:
+heading_level: 3
+members: - make - register - register_alias - registered_envs - print_envs
 
 ## Complete List of Registered Environments
 
 Below is the complete list of all registered environment ids available in Jaxnasium.
 
 !!! note "Auto-generated List"
-    This list is automatically generated from the Jaxnasium registry.
+This list is automatically generated from the Jaxnasium registry.
 
 --8<-- "api/_Available-Environments-List.md"

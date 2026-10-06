@@ -147,6 +147,19 @@ class Registry:
                 if wrap:
                     return _wrap_env(env, BraxWrapper)
                 return env  # type: ignore
+            elif package == "crax":
+                import crax.envs  # type: ignore
+
+                # Set default to level 1 (easiest)
+                if crax.envs.supports_difficulty(env_name):
+                    env_kwargs.setdefault("level", 1)
+                    logger.info(
+                        f"Defaulting to level 1 for crax env {env_name}. Set `level=` to override."
+                    )
+                env = crax.envs.get_environment(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, BraxWrapper)  # Uses the Brax API
+                return env  # type: ignore
             elif package == "pgx":
                 import pgx  # type: ignore
 
@@ -349,6 +362,27 @@ registry.register_alias("inverted_double_pendulum", "brax:inverted_double_pendul
 registry.register_alias("pusher", "brax:pusher")
 registry.register_alias("reacher", "brax:reacher")
 registry.register_alias("walker2d", "brax:walker2d")
+
+# Crax envs (safety-constrained Brax fork)
+for _crax_id in (
+    "safe_button_point",
+    "safe_circle_point",
+    "safe_goal_point",
+    "safe_height_humanoid",
+    "safe_lift_ant",
+    "safe_lift_humanoid",
+    "safe_lift_spider",
+    "safe_pathway_walker2d",
+    "safe_push_point",
+    "safe_reacher",
+    "safe_velocity_ant",
+    "safe_velocity_halfcheetah",
+    "safe_velocity_humanoid",
+    "safe_velocity_hopper",
+    "safe_velocity_swimmer",
+    "safe_velocity_walker2d",
+):
+    registry.register_alias(f"{_crax_id}", f"crax:{_crax_id}")
 
 # Pgx envs
 registry.register_alias("2048", "pgx:2048")

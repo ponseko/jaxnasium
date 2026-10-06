@@ -56,10 +56,12 @@ external = [
     "rice_jax",
     "chargax",
     "econojax",
+    "crax",
 ]
 
 [tool.uv.sources]
 popjym = { git = "https://github.com/FLAIROx/popjym" }
+crax = { git = "https://github.com/TTomilin/CRAX" }
 rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", branch = "GAIA_jax", subdirectory="rice_jax" }
 chargax = { git = "https://github.com/ponseko/chargax" }
 econojax = { git = "https://github.com/ponseko/econojax" }

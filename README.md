@@ -1,6 +1,4 @@
-
 # Jaxnasium: A Lightweight Utility Library for JAX-based RL Projects
-
 
 [![PyPI version](https://badge.fury.io/py/jaxnasium.svg)](https://badge.fury.io/py/jaxnasium)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -10,7 +8,7 @@
 Jaxnasium is not an environment suite, and not a framework that locks you in. Rather, it is your one-stop shop for your JAX RL code: a single environment API that existing suites are wrapped into, a set of general algorithms you can either import or copy into your project, and the
 tooling to train, evaluate and sweep them.
 
-1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Pgx, JaxMARL, xMinigrid, Navix, PopJym or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
+1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Crax, Pgx, JaxMARL, xMinigrid, Navix, Playground, PopJym or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
 2. 🤖 **Readable cross-suite algorithms.** Various algorithms that can operate on any of those environments in near-single-file philosophy, built in [Equinox](https://github.com/patrick-kidger/equinox) with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3)-like API and end-to-end JIT training in the spirit of [PureJaxRL](https://github.com/luchris429/purejaxrl).
 3. 👥 **Multi-agent for free.** Single-agent algorithm code transparently upgrades to multi-agent environments through PyTrees and function transformations.
 4. 📊 **Sweeps and evaluation.** Grid, random, Sobol and one-at-a-time searches over many seeds, locally or across a Slurm job array.
@@ -24,7 +22,7 @@ For more details, see the [📖 Documentation](https://ponseko.github.io/jaxnasi
 pip install "jaxnasium[algs]"   # [algs] pulls in optax + distrax, needed for jaxnasium.algorithms
 ```
 
-Third-party environment suites are *not* dependencies; install the ones you want to use
+Third-party environment suites are _not_ dependencies; install the ones you want to use
 (e.g. `pip install gymnax`). For a brand-new project, let the [CLI](https://ponseko.github.io/jaxnasium/cli/) set everything up for you:
 
 ```bash
@@ -81,7 +79,7 @@ See [Available Environments](https://ponseko.github.io/jaxnasium/api/Available-E
 
 ### Environment API
 
-The Jaxnasium API stays close to the *somewhat* established [Gymnax](https://github.com/RobertTLange/gymnax) API for the `reset()` and `step()` functions, but allows for truncated episodes in a manner closer to [Gymnasium](https://gymnasium.farama.org/).
+The Jaxnasium API stays close to the _somewhat_ established [Gymnax](https://github.com/RobertTLange/gymnax) API for the `reset()` and `step()` functions, but allows for truncated episodes in a manner closer to [Gymnasium](https://gymnasium.farama.org/).
 
 ```python
 obs, env_state = env.reset(key)  # <-- Mirroring Gymnax
@@ -112,12 +110,12 @@ Networks are configurable without touching the algorithm, observation and action
 be arbitrary PyTrees of spaces, and observation/reward normalization is built in and
 checkpointed with the agent. See [Algorithms](https://ponseko.github.io/jaxnasium/algorithms/Algorithms/) for the details.
 
-| Algorithm | Multi-Agent<sup>1</sup> | Observation Spaces | Action Spaces | Composite (nested) Spaces<sup>2</sup> |
-|-----------|-------------------------|-------------------|---------------|--------------------------------------|
-| **PPO**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Box`, `Discrete`, `MultiDiscrete` | ✅ |
-| **DQN**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Discrete`, `MultiDiscrete`<sup>3</sup> | ✅ |
-| **PQN**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Discrete`, `MultiDiscrete`<sup>3</sup> | ✅ |
-| **SAC**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Box`, `Discrete`, `MultiDiscrete` | ✅ |
+| Algorithm | Multi-Agent<sup>1</sup> | Observation Spaces                 | Action Spaces                           | Composite (nested) Spaces<sup>2</sup> |
+| --------- | ----------------------- | ---------------------------------- | --------------------------------------- | ------------------------------------- |
+| **PPO**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Box`, `Discrete`, `MultiDiscrete`      | ✅                                    |
+| **DQN**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Discrete`, `MultiDiscrete`<sup>3</sup> | ✅                                    |
+| **PQN**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Discrete`, `MultiDiscrete`<sup>3</sup> | ✅                                    |
+| **SAC**   | ✅                      | `Box`, `Discrete`, `MultiDiscrete` | `Box`, `Discrete`, `MultiDiscrete`      | ✅                                    |
 
 <sup>1</sup> All algorithms support automatic multi-agent transformation through the `auto_upgrade_multi_agent` parameter. See [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/) for more information.
 
@@ -164,11 +162,11 @@ See [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) and [Searches](ht
 
 ## Where to go next
 
-| | |
-| --- | --- |
-| [Environment](https://ponseko.github.io/jaxnasium/api/Environment/) · [Spaces](https://ponseko.github.io/jaxnasium/api/Spaces/) · [Wrappers](https://ponseko.github.io/jaxnasium/api/Wrappers/) | Build or adapt an environment |
-| [Algorithms](https://ponseko.github.io/jaxnasium/algorithms/Algorithms/) · [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/) | Train agents |
-| [Networks](https://ponseko.github.io/jaxnasium/algorithms/networks/Networks/) · [Architectures](https://ponseko.github.io/jaxnasium/algorithms/networks/Architectures/) | Swap in your own model |
-| [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) · [Searches](https://ponseko.github.io/jaxnasium/eval/Searches/) | Run experiments at scale |
-| [Compilation](https://ponseko.github.io/jaxnasium/api/Compilation/) | Ahead-of-time compilation and caching |
-| [Checkpointing](https://ponseko.github.io/jaxnasium/algorithms/core/Checkpointing/) · [Tree utilities](https://ponseko.github.io/jaxnasium/tree/Tree/) · [CLI](https://ponseko.github.io/jaxnasium/cli/) | Everything else |
+|                                                                                                                                                                                                          |                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [Environment](https://ponseko.github.io/jaxnasium/api/Environment/) · [Spaces](https://ponseko.github.io/jaxnasium/api/Spaces/) · [Wrappers](https://ponseko.github.io/jaxnasium/api/Wrappers/)          | Build or adapt an environment         |
+| [Algorithms](https://ponseko.github.io/jaxnasium/algorithms/Algorithms/) · [Multi-Agent](https://ponseko.github.io/jaxnasium/algorithms/Multi-Agent/)                                                    | Train agents                          |
+| [Networks](https://ponseko.github.io/jaxnasium/algorithms/networks/Networks/) · [Architectures](https://ponseko.github.io/jaxnasium/algorithms/networks/Architectures/)                                  | Swap in your own model                |
+| [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) · [Searches](https://ponseko.github.io/jaxnasium/eval/Searches/)                                                                              | Run experiments at scale              |
+| [Compilation](https://ponseko.github.io/jaxnasium/api/Compilation/)                                                                                                                                      | Ahead-of-time compilation and caching |
+| [Checkpointing](https://ponseko.github.io/jaxnasium/algorithms/core/Checkpointing/) · [Tree utilities](https://ponseko.github.io/jaxnasium/tree/Tree/) · [CLI](https://ponseko.github.io/jaxnasium/cli/) | Everything else                       |

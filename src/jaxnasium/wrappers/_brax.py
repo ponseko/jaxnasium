@@ -1,12 +1,13 @@
 from typing import Any
 
 import equinox as eqx
-import jax
+import jax.numpy as jnp
+import numpy as np
 from jaxtyping import PRNGKeyArray
 
 from jaxnasium._environment import Observation, TimeStep
+from jaxnasium._spaces import Box
 
-from ._util import gymnasium_to_jaxnasium_space
 from ._wrappers import Wrapper
 
 
@@ -60,17 +61,14 @@ class BraxWrapper(Wrapper):
 
     @property
     def observation_space(self) -> Any:
-        from brax.envs.wrappers import gym as braxGym
-
-        # ensuring space properties are not tracers:
-        with jax.ensure_compile_time_eval():
-            obs_space = braxGym.GymWrapper(self._env).observation_space
-        return gymnasium_to_jaxnasium_space(obs_space)
+        shape = (self._env.observation_size,)
+        return Box(low=-np.inf, high=np.inf, shape=shape, dtype=jnp.float32)
 
     @property
     def action_space(self) -> Any:
-        from brax.envs.wrappers import gym as braxGym
-
-        with jax.ensure_compile_time_eval():
-            action_space = braxGym.GymWrapper(self._env).action_space
-        return gymnasium_to_jaxnasium_space(action_space)
+        sys = self._env.sys
+        limited = np.asarray(sys.actuator_ctrllimited, dtype=bool)
+        ctrl_range = np.asarray(sys.actuator_ctrlrange, dtype=np.float32)
+        low = np.where(limited, ctrl_range[:, 0], -np.inf)
+        high = np.where(limited, ctrl_range[:, 1], np.inf)
+        return Box(low=low, high=high, shape=low.shape, dtype=jnp.float32)
