@@ -257,6 +257,9 @@
 - `craftax:Craftax-Classic-Pixels-v1`
 - `craftax:Craftax-Symbolic-v1`
 - `craftax:Craftax-Pixels-v1`
+- `factoriax:MinerBootstrap-v1`
+- `factoriax:EasyRocket-v1`
+- `factoriax:Rocket-v1`
 - `popjym:NoisyStatelessMetaCartPole`
 - `popjym:AutoencodeEasy`
 - `popjym:AutoencodeMedium`

@@ -76,6 +76,11 @@ JAX CHIP-8 emulator environments (Brix, Pong, Tetris, and other classic games).
 
 JAX implementation of Craftax environments, inspired by Minecraft-like crafting and survival tasks.
 
+### [Factoriax](https://github.com/mickeybeurskens/factoriax)
+
+A JAX grid world of Factorio-style crafting and logistics: mine ore, place machines, and
+work up a tech tree towards launching a rocket. Uses the Gymnax API.
+
 ### [PopJym](https://github.com/FLAIROx/popjym)
 
 JAX implementation of POPGym, a suite of partially observable environments. Generally requires a recurrent or memory-based policy.

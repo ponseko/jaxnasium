@@ -204,6 +204,14 @@ class Registry:
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
                 return env  # type: ignore
+            elif package == "factoriax":
+                from factoriax.make import env_from_name  # type: ignore
+
+                # auto_reset=False: the GymnaxWrapper does its own auto-reset.
+                env, _params = env_from_name(env_name, auto_reset=False, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
+                return env  # type: ignore
             elif package == "playground":
                 import mujoco_playground  # type: ignore
 
@@ -616,6 +624,14 @@ registry.register_alias("Craftax-Pixels-v1", "craftax:Craftax-Pixels-v1")
 # registry.register_alias(
 #     "Craftax-Pixels-AutoReset-v1", "craftax:Craftax-Pixels-AutoReset-v1"
 # )
+
+# Factoriax envs (Factorio-like crafting/logistics grid world)
+for _factoriax_id in (
+    "MinerBootstrap-v1",
+    "EasyRocket-v1",
+    "Rocket-v1",
+):
+    registry.register_alias(f"{_factoriax_id}", f"factoriax:{_factoriax_id}")
 
 # PopJym envs (POPGym in JAX). These are partially observable.
 for _popjym_id in (

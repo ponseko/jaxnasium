@@ -57,6 +57,7 @@ external = [
     "chargax",
     "econojax",
     "crax",
+    "factoriax==0.1.0",
 ]
 
 [tool.uv.sources]
