@@ -20,22 +20,9 @@ def _resolve(reference: str) -> Any:
     return obj
 
 
-def _marshal(x: Any):
-    if isinstance(x, functools.partial):
-        # members are marshaled recursively, so `func` goes through _QUALNAME below
-        return _PARTIAL, {
-            "func": x.func,
-            "args": list(x.args),
-            "kwargs": dict(x.keywords),
-        }
-
-    if isinstance(x, tuple) and hasattr(x, "_fields"):  # NamedTuple, e.g. optax states
-        cls = type(x)
-        return _NAMEDTUPLE, {
-            "cls": f"{cls.__module__}:{cls.__qualname__}",
-            "fields": dict(zip(x._fields, x)),  # type: ignore
-        }
-
+def _reference(x: Any) -> str | None:
+    """Importable `module:qualname` of `x`.
+    If `x` cannot be looked up by name (e.g. for elements defined inside functions), this returns None."""
     module_name = getattr(x, "__module__", None)
     qualname = getattr(x, "__qualname__", None)
     if module_name is None or qualname is None or "<locals>" in qualname:
@@ -43,21 +30,57 @@ def _marshal(x: Any):
     reference = f"{module_name}:{qualname}"
     try:
         if _resolve(reference) is x:
-            return _QUALNAME, reference
+            return reference
     except Exception:
         return None
     return None
+
+
+def _marshal(x: Any):
+    if isinstance(x, functools.partial):
+        if _reference(type(x)) is None:
+            return None
+        # jax.tree_util.Partial is also a functool.partial; so we save the cls here too
+        return _PARTIAL, {
+            "cls": type(x),
+            "func": x.func,
+            "args": list(x.args),
+            "kwargs": dict(x.keywords),
+            "dict": dict(vars(x)),
+        }
+
+    if isinstance(x, tuple) and hasattr(x, "_fields"):  # NamedTuple, e.g. optax states
+        cls_reference = _reference(type(x))
+        if cls_reference is None:
+            return None
+        return _NAMEDTUPLE, {
+            "cls": cls_reference,
+            "fields": dict(zip(x._fields, x)),  # type: ignore
+        }
+
+    reference = _reference(x)
+    if reference is None:
+        return None
+    return _QUALNAME, reference
 
 
 def _unmarshal(type_info: str, marshaled: Any):
     if type_info == _QUALNAME:
         return _resolve(marshaled)
     if type_info == _NAMEDTUPLE:
-        return _resolve(marshaled["cls"])(**marshaled["fields"])
+        cls = _resolve(marshaled["cls"])
+        if not (
+            isinstance(cls, type) and issubclass(cls, tuple) and hasattr(cls, "_fields")
+        ):
+            raise TypeError(f"{marshaled['cls']!r} is not a NamedTuple class")
+        return cls(**marshaled["fields"])
     if type_info == _PARTIAL:
-        return functools.partial(
-            marshaled["func"], *marshaled["args"], **marshaled["kwargs"]
-        )
+        cls = marshaled.get("cls", functools.partial)
+        if not (isinstance(cls, type) and issubclass(cls, functools.partial)):
+            raise TypeError(f"{cls!r} is not a functools.partial class")
+        out = cls(marshaled["func"], *marshaled["args"], **marshaled["kwargs"])
+        out.__dict__.update(marshaled.get("dict", {}))
+        return out
     return None
 
 
