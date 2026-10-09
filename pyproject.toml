@@ -16,7 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 algs = [
     "distrax>=0.1.7",
-    "optax>=0.2.4",
+    "optax>=0.2.5",
 ]
 gpu = [
     "jax[cuda]"
