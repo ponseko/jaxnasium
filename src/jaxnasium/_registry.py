@@ -121,17 +121,17 @@ class Registry:
             if package == "gymnax":
                 import gymnax  # type: ignore
 
-                env, _ = gymnax.make(env_name, **env_kwargs)
+                env, env_params = gymnax.make(env_name, **env_kwargs)
                 if wrap:
-                    return _wrap_env(env, GymnaxWrapper)
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "popjym":
                 # Popgym uses the gymnax api (< version 1)
                 import popjym  # type: ignore
 
-                env, _ = popjym.make(env_name, **env_kwargs)
+                env, env_params = popjym.make(env_name, **env_kwargs)
                 if wrap:
-                    return _wrap_env(env, GymnaxWrapper)
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "jumanji":
                 import jumanji  # type: ignore
@@ -208,9 +208,12 @@ class Registry:
                 from factoriax.make import env_from_name  # type: ignore
 
                 # auto_reset=False: the GymnaxWrapper does its own auto-reset.
-                env, _params = env_from_name(env_name, auto_reset=False, **env_kwargs)
+                env, env_params = env_from_name(
+                    env_name, auto_reset=False, **env_kwargs
+                )
                 if wrap:
-                    return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
+                    # Uses Gymnax style API. Scenario params differ from `default_params`
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "playground":
                 import mujoco_playground  # type: ignore
