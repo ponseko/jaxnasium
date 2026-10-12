@@ -1,4 +1,5 @@
 from ._brax import BraxWrapper as BraxWrapper
+from ._envpool_xla import EnvPoolXLAWrapper as EnvPoolXLAWrapper
 from ._gymnasium_cpu import GymnasiumWrapper as GymnasiumWrapper
 from ._gymnax import GymnaxWrapper as GymnaxWrapper
 from ._jaxmarl import JaxMARLWrapper as JaxMARLWrapper

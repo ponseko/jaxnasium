@@ -9,7 +9,7 @@ import gymnasium as gym
 import jax
 from gymnasium.vector import AutoresetMode
 
-from jaxnasium import GymnasiumWrapper
+from jaxnasium.wrappers import GymnasiumWrapper
 from jaxnasium.algorithms import PPO
 
 venv = gym.make_vec(
@@ -69,6 +69,12 @@ eval_env = GymnasiumWrapper(gym.make("CartPole-v1"))
 returns = agent.evaluate(jax.random.key(1), eval_env, num_eval_episodes=10)
 ```
 
+::: jaxnasium.wrappers.GymnasiumWrapper
+    options:
+        members:
+            - step
+            - reset
+
 ## EnvPool
 
 Since [EnvPool](https://github.com/sail-sg/envpool) can create environments with the Gymnasium standard, the `GymnasiumWrapper` can trivially be used to speed up training times on EnvPool supported environments:
@@ -84,12 +90,27 @@ EnvPool resets finished environments on the next step, so the wrapper resets the
 described above. Seed the environments when creating them: EnvPool does not
 take per-reset seeds into account, so runs are not seeded by the key passed to `reset`.
 
+### EnvPool's XLA interface
 
-::: jaxnasium.GymnasiumWrapper
+The `EnvPoolXLAWrapper` steps EnvPool's C++ environments directly from the compiled program, via
+EnvPool's XLA interface. Python is then only called on steps where an episode ended somewhere in
+the batch, to reset those environments. This is typically faster than the `GymnasiumWrapper`,
+especially when episodes rarely end.
+
+```python
+import envpool
+from jaxnasium.wrappers import EnvPoolXLAWrapper
+
+venv = envpool.make_gymnasium("LunarLander-v2", num_envs=16, seed=0)
+env = EnvPoolXLAWrapper(venv)
+
+ppo = PPO(num_envs=16, total_timesteps=500_000)
+agent, metrics = ppo.train(jax.random.key(0), env)
+```
+
+::: jaxnasium.wrappers.EnvPoolXLAWrapper
     options:
-        members:
-            - step
-            - reset
+        members: false
 
 
 ## Limitations
