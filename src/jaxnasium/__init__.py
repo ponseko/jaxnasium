@@ -21,22 +21,13 @@ from ._spaces import (
 )
 from ._types import AgentObservation as AgentObservation
 from .wrappers import (
-    BraxWrapper as BraxWrapper,
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
-    GymnasiumWrapper as GymnasiumWrapper,
-    GymnaxWrapper as GymnaxWrapper,
-    JaxMARLWrapper as JaxMARLWrapper,
-    JumanjiWrapper as JumanjiWrapper,
     LogWrapper as LogWrapper,
     MetaParamsWrapper as MetaParamsWrapper,
-    NavixWrapper as NavixWrapper,
     NormalizeVecObsWrapper as NormalizeVecObsWrapper,
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
-    OctaxWrapper as OctaxWrapper,
-    PgxWrapper as PgxWrapper,
-    PlaygroundWrapper as PlaygroundWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
     TransformRewardWrapper as TransformRewardWrapper,
@@ -46,7 +37,6 @@ from .wrappers import (
     is_wrapped as is_wrapped,
     remove_wrapper as remove_wrapper,
     unwrap_to as unwrap_to,
-    xMinigridWrapper as xMinigridWrapper,
 )
 
 registry = _registry.registry
