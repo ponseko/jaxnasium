@@ -73,8 +73,10 @@ def is_wrapped(wrapped_env: Environment, wrapper_class: type | str) -> bool:
     """
     current_env = wrapped_env
     while isinstance(current_env, Wrapper):
-        if isinstance(wrapper_class, str):  # Handle string class names
-            if current_env.__class__.__name__ == wrapper_class:
+        if isinstance(
+            wrapper_class, str
+        ):  # Handle string class names, incl. base classes
+            if any(c.__name__ == wrapper_class for c in type(current_env).__mro__):
                 return True
         else:  # Handle class type inputs
             if isinstance(current_env, wrapper_class):
@@ -444,81 +446,102 @@ class NormalizeVecRewardWrapper(Wrapper):
         return TimeStep(obs, reward, terminated, truncated, info), state
 
 
-def _flatten(x: Array) -> Array:
-    """Flattens or leaves unchaged if a scalar"""
-    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
+def _is_space(x: Any) -> bool:
+    return isinstance(x, Space)
 
 
-class FlattenObservationWrapper(Wrapper):
-    """Flatten the observations of the environment.
+class TransformObservationWrapper(Wrapper):
+    """Transform observations with a function.
 
-    Flattens each observation in the environment to a single vector.
-    When the observation is a PyTree of arrays, it flattens each array
-    and returns the same PyTree structure with the flattened arrays.
+    `func` (and `observation_space_fn`) is applied to each observation leaf.
+    terminal observations (in info) are also transformed, and action masks are untouched.
 
     **Arguments:**
 
-    - `_env`: Environment to wrap.
+    - `env`: Environment to wrap.
+    - `func`: Function applied to every observation leaf, or a pytree of functions with the
+        same structure as the observation (one function per leaf).
+    - `observation_space_fn`: Function giving the new space of every observation leaf, or a
+        pytree of them (same structure). If None, the observation space is kept, so pass it
+        whenever `func` would change the observation space shape or dtype.
     """
+
+    func: Callable | PyTree[Callable]
+    observation_space_fn: Callable | PyTree[Callable] | None = None
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, env_state = self._env.reset(key)
-        obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
-        obs = jax.tree.map(_flatten, obs)
-        obs = eqx.combine(obs, masks)
-        return obs, env_state
+        return self.observation(obs), env_state
 
     def step(
         self, key: PRNGKeyArray, state: TEnvState, action: PyTree[int | float | Array]
     ) -> tuple[TimeStep, TEnvState]:
         timestep, env_state = self._env.step(key, state, action)
-        obs, masks = partition_obs_and_masks(
-            timestep.observation, self._env.multi_agent
-        )
-        obs = jax.tree.map(_flatten, obs)
-        obs = eqx.combine(obs, masks)
-        timestep = timestep._replace(observation=obs)
-        try:
-            # Same above: flatten the observation itself but leave any action mask alone.
-            info = timestep.info
-            terminal_obs, terminal_masks = partition_obs_and_masks(
-                info[ORIGINAL_OBSERVATION_KEY], self._env.multi_agent
-            )
-            terminal_obs = jax.tree.map(_flatten, terminal_obs)
-            info[ORIGINAL_OBSERVATION_KEY] = eqx.combine(terminal_obs, terminal_masks)
-            timestep = timestep._replace(info=info)
-        except Exception:
-            pass
-        return timestep, env_state
+        info = timestep.info
+        if ORIGINAL_OBSERVATION_KEY in info:
+            terminal = self.observation(info[ORIGINAL_OBSERVATION_KEY])
+            info = {**info, ORIGINAL_OBSERVATION_KEY: terminal}
+        obs = self.observation(timestep.observation)
+        return timestep._replace(observation=obs, info=info), env_state
+
+    def observation(self, observation: Observation) -> Observation:
+        return self._map_leaves(self.func, observation)
 
     @property
-    def observation_space(self) -> Space:
-        obs_space = self._env.observation_space
-        obs, masks = partition_obs_and_masks(obs_space, self._env.multi_agent)
+    def observation_space(self) -> Space | PyTree[Space]:
+        space = self._env.observation_space
+        if self.observation_space_fn is None:
+            return space
+        return self._map_leaves(self.observation_space_fn, space)
 
-        def get_flat_shape(space):
-            if not hasattr(space, "shape") or space.shape == ():
-                return space
-            _space = deepcopy(space)
-            flat_space_shape = int(np.prod(np.array(space.shape)))
-            try:
-                _space.shape = (flat_space_shape,)
-            except AttributeError:  # Gymnasium envs have no setter on shape
-                _space._shape = (flat_space_shape,)
+    def _map_leaves(self, fns: Callable | PyTree[Callable], tree: PyTree) -> PyTree:
+        """`fns` (one function, or one per leaf) on every observation leaf of `tree`, which
+        is an observation or an observation space."""
+        tree, masks = partition_obs_and_masks(tree, self._env.multi_agent)
+        if callable(fns):
+            tree = jax.tree.map(fns, tree, is_leaf=_is_space)
+        else:
+            tree = jax.tree.map(lambda fn, x: fn(x), fns, tree, is_leaf=_is_space)
+        return eqx.combine(tree, masks)
 
-            # Also flatten the .low and .high attributes if they exist
-            if hasattr(_space, "low") and hasattr(_space, "high"):
-                _space.low = np.reshape(_space.low, (-1,))
-                _space.high = np.reshape(_space.high, (-1,))
 
-            if hasattr(_space, "nvec"):
-                _space.nvec = np.reshape(_space.nvec, (-1,))
+def _flatten(x: Array) -> Array:
+    """Flattens or leaves unchaged if a scalar"""
+    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
 
-            return _space
 
-        flat_obs = jax.tree.map(get_flat_shape, obs)
-        obs_space = eqx.combine(flat_obs, masks)
-        return obs_space
+def _flatten_space(space: Space) -> Space:
+    if not hasattr(space, "shape") or space.shape == ():
+        return space
+    _space = deepcopy(space)
+    flat_space_shape = int(np.prod(np.array(space.shape)))
+    try:
+        _space.shape = (flat_space_shape,)
+    except AttributeError:  # Gymnasium envs have no setter on shape
+        _space._shape = (flat_space_shape,)  # type: ignore
+
+    # Also flatten the .low and .high attributes if they exist
+    if hasattr(_space, "low") and hasattr(_space, "high"):
+        _space.low = np.reshape(_space.low, (-1,))  # type: ignore
+        _space.high = np.reshape(_space.high, (-1,))  # type: ignore
+
+    if hasattr(_space, "nvec"):
+        _space.nvec = np.reshape(_space.nvec, (-1,))  # type: ignore
+
+    return _space
+
+
+class FlattenObservationWrapper(TransformObservationWrapper):
+    """Flatten the observations of the environment.
+    Flattens each observation leaf to a vector, keeping the PyTree structure of the observation.
+
+    **Arguments:**
+
+    - `env`: Environment to wrap.
+    """
+
+    def __init__(self, env: Environment):
+        super().__init__(env, _flatten, _flatten_space)
 
 
 class TransformRewardWrapper(Wrapper):

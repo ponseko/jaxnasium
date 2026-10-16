@@ -30,6 +30,7 @@ from .wrappers import (
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
+    TransformObservationWrapper as TransformObservationWrapper,
     TransformRewardWrapper as TransformRewardWrapper,
     VecEnvWrapper as VecEnvWrapper,
     Wrapper as Wrapper,
