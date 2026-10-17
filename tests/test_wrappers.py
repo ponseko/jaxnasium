@@ -544,7 +544,7 @@ def test_stack_action_space_wrapper_leaves_passed_through_masks_alone():
     obs, _ = wrapped.reset(SEED)
     actual = jax.tree.map(lambda m: m.shape, obs.action_mask)
 
-    assert declared == ((3, 4), (6,))
+    assert declared == [(3, 4), (6,)]
     assert actual == declared
 
 

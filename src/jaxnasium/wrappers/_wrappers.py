@@ -845,7 +845,7 @@ def _unstack_action(space_tree: PyTree[Space], action) -> PyTree[Array]:
     """Split a stacked action back into the the original environment's action pytree."""
     spaces, structure = jax.tree.flatten(space_tree)
     groups = _stackable_groups(space_tree)
-    # a single group was returned bare rather than in a tuple, so re-wrap it
+    # a single group was returned bare rather than in a list, so re-wrap it
     per_group = list(action) if len(groups) > 1 else [action]
 
     actions: list[Any] = [None] * len(spaces)
@@ -874,7 +874,7 @@ class StackActionSpaceWrapper(Wrapper):
     As an example:
     ```python
     (Discrete(20), Discrete(20), Discrete(20))  # -> MultiDiscrete([20, 20, 20])
-    (Discrete(10), Discrete(10), Discrete(10), Discrete(5)) -> (MultiDiscrete([10, 10, 10]), Discrete(5))
+    (Discrete(10), Discrete(10), Discrete(10), Discrete(5)) -> [MultiDiscrete([10, 10, 10]), Discrete(5)]
     ```
 
     This may be useful because Jaxnasium algorithms will vmap homogenous MultiDiscrete spaces, while
