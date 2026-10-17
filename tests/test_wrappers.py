@@ -8,6 +8,8 @@ from _proxy_test_envs import (
     REPRESENTATIVE_ENVS,
     make_proxy_env,
     obs_box_vector,
+    obs_dict_flat,
+    obs_discrete_scalar,
     observation_arrays,
 )
 from jaxtyping import PRNGKeyArray
@@ -81,6 +83,91 @@ def test_flatten_observation_wrapper(env: Environment):
         assert flat.size == orig.size  # no elements are lost
         # the declared flat space matches the number of elements in the flat obs
         assert flat.size == int(np.prod(space.shape))
+
+
+def _plus_one(x):
+    return jnp.asarray(x, jnp.float32) + 1
+
+
+@pytest.mark.parametrize(
+    "env", REPRESENTATIVE_ENVS.values(), ids=REPRESENTATIVE_ENVS.keys()
+)
+def test_transform_observation_wrapper(env: Environment):
+    def float_space(space):
+        return Box(-jnp.inf, jnp.inf, space.shape, jnp.float32)
+
+    wrapped = jym.TransformObservationWrapper(env, _plus_one, float_space)
+
+    orig_obs, _ = env.reset(SEED)
+    new_obs, _ = wrapped.reset(SEED)
+
+    orig_leaves = observation_arrays(orig_obs)
+    new_leaves = observation_arrays(new_obs)
+    space_leaves = observation_arrays(wrapped.observation_space)
+    assert len(orig_leaves) == len(new_leaves) == len(space_leaves)
+    for orig, new, space in zip(orig_leaves, new_leaves, space_leaves):
+        assert jnp.array_equal(new, _plus_one(orig))
+        assert isinstance(space, Box)
+        assert space.shape == jnp.shape(orig)
+        assert space.dtype == jnp.float32
+
+    # Action masks are passed through untransformed
+    partition = jym.wrappers.partition_obs_and_masks
+    orig_masks = jax.tree.leaves(partition(orig_obs, env.multi_agent)[1])
+    new_masks = jax.tree.leaves(partition(new_obs, env.multi_agent)[1])
+    assert len(orig_masks) == len(new_masks)
+    for orig, new in zip(orig_masks, new_masks):
+        assert jnp.array_equal(orig, new)
+
+
+def test_transform_observation_wrapper_keeps_space_without_space_fn():
+    env = make_proxy_env(obs_dict_flat)
+    wrapped = jym.TransformObservationWrapper(env, lambda x: x)
+    assert wrapped.observation_space == env.observation_space
+
+
+def test_transform_observation_wrapper_pytree_of_functions():
+    env = make_proxy_env(obs_dict_flat)
+    fns = {"vector": lambda x: x * 2, "flag": lambda x: jnp.stack([x, x])}
+    space_fns = {
+        "vector": lambda s: Box(2 * s.low, 2 * s.high, s.shape, s.dtype),
+        "flag": lambda s: MultiDiscrete(np.full(2, s.n), dtype=s.dtype),
+    }
+    wrapped = jym.TransformObservationWrapper(env, fns, space_fns)
+
+    orig_obs, _ = env.reset(SEED)
+    new_obs, _ = wrapped.reset(SEED)
+    assert jnp.array_equal(new_obs["vector"], orig_obs["vector"] * 2)
+    assert jnp.array_equal(new_obs["flag"], jnp.stack([orig_obs["flag"]] * 2))
+
+    space = wrapped.observation_space
+    inner = env.observation_space
+    assert space["vector"] == Box(  # type: ignore
+        2 * inner["vector"].low, 2 * inner["vector"].high, (6,), jnp.float32
+    )
+    assert space["flag"] == MultiDiscrete(np.full(2, inner["flag"].n))  # type: ignore
+
+
+def test_transform_observation_wrapper_transforms_terminal_observation():
+    env = make_proxy_env(obs_box_vector, episode_length=3)
+    wrapped = jym.TransformObservationWrapper(env, _plus_one)
+
+    _, inner_state = env.reset(SEED)
+    _, state = wrapped.reset(SEED)
+    saw_episode_end = False
+    key = SEED
+    for _ in range(6):
+        key, step_key, action_key = jax.random.split(key, 3)
+        action = env.sample_action(action_key)
+        inner_ts, inner_state = env.step(step_key, inner_state, action)
+        ts, state = wrapped.step(step_key, state, action)
+        assert jnp.array_equal(ts.observation, _plus_one(inner_ts.observation))
+        terminal = inner_ts.info[jym.ORIGINAL_OBSERVATION_KEY]
+        assert jnp.array_equal(
+            ts.info[jym.ORIGINAL_OBSERVATION_KEY], _plus_one(terminal)
+        )
+        saw_episode_end |= bool(jnp.logical_or(inner_ts.terminated, inner_ts.truncated))
+    assert saw_episode_end
 
 
 @pytest.mark.parametrize("name", DISCRETE_ACTION_ENV_NAMES)
@@ -459,3 +546,97 @@ def test_stack_action_space_wrapper_leaves_passed_through_masks_alone():
 
     assert declared == ((3, 4), (6,))
     assert actual == declared
+
+
+@pytest.mark.parametrize(
+    "env", REPRESENTATIVE_ENVS.values(), ids=REPRESENTATIVE_ENVS.keys()
+)
+def test_frame_stack_wrapper_spaces(env: Environment):
+    num_frames = 3
+    wrapped = jym.FrameStackWrapper(env, num_frames=num_frames)
+
+    orig_obs, _ = env.reset(SEED)
+    stacked_obs, _ = wrapped.reset(SEED)
+
+    orig_leaves = observation_arrays(orig_obs)
+    stacked_leaves = observation_arrays(stacked_obs)
+    space_leaves = observation_arrays(wrapped.observation_space)
+
+    assert len(orig_leaves) == len(stacked_leaves) == len(space_leaves)
+    for orig, stacked, space in zip(orig_leaves, stacked_leaves, space_leaves):
+        assert stacked.shape == (num_frames, *jnp.shape(orig)) == space.shape
+        # A fresh episode repeats its first frame
+        assert jnp.array_equal(
+            stacked, jnp.repeat(jnp.asarray(orig)[None], num_frames, 0)
+        )
+
+    # Action masks are passed through, not stacked
+    orig_masks = jax.tree.leaves(
+        jym.wrappers.partition_obs_and_masks(orig_obs, env.multi_agent)[1]
+    )
+    stacked_masks = jax.tree.leaves(
+        jym.wrappers.partition_obs_and_masks(stacked_obs, env.multi_agent)[1]
+    )
+    assert len(orig_masks) == len(stacked_masks)
+    for orig, stacked in zip(orig_masks, stacked_masks):
+        assert jnp.array_equal(orig, stacked)
+
+
+def test_frame_stack_wrapper_discrete_observation_space():
+    env = make_proxy_env(obs_discrete_scalar)
+    space = jym.FrameStackWrapper(env, num_frames=4).observation_space
+    assert isinstance(space, MultiDiscrete)
+    assert space.shape == (4,)
+    assert np.array_equal(space.nvec, np.full(4, 5))
+
+
+def test_frame_stack_wrapper_pushes_and_resets_on_episode_end():
+    """Step the wrapped and unwrapped env in lockstep with identical keys/actions."""
+    num_frames = 3
+    env = make_proxy_env(obs_box_vector, episode_length=4)
+    wrapped = jym.FrameStackWrapper(env, num_frames=num_frames)
+
+    _, inner_state = env.reset(SEED)
+    stack, state = wrapped.reset(SEED)
+
+    saw_episode_end = False
+    key = SEED
+    for _ in range(10):
+        key, step_key, action_key = jax.random.split(key, 3)
+        action = env.sample_action(action_key)
+        inner_ts, inner_state = env.step(step_key, inner_state, action)
+        ts, state = wrapped.step(step_key, state, action)
+        done = jnp.logical_or(inner_ts.terminated, inner_ts.truncated)
+
+        if done:
+            saw_episode_end = True
+            # New episode: the reset frame repeated
+            expected = jnp.repeat(inner_ts.observation[None], num_frames, axis=0)
+            # Terminal observation: previous stack plus the real last frame
+            terminal = inner_ts.info[jym.ORIGINAL_OBSERVATION_KEY]
+            expected_terminal = jnp.concatenate([stack[1:], terminal[None]])
+            assert jnp.array_equal(
+                ts.info[jym.ORIGINAL_OBSERVATION_KEY], expected_terminal
+            )
+        else:
+            expected = jnp.concatenate([stack[1:], inner_ts.observation[None]])
+
+        assert jnp.array_equal(ts.observation, expected)
+        assert jnp.array_equal(ts.observation[-1], inner_ts.observation)
+        stack = ts.observation
+
+    assert saw_episode_end
+
+
+def test_frame_stack_wrapper_under_vec_env():
+    env = make_proxy_env(obs_box_vector)
+    vec_env = jym.VecEnvWrapper(jym.FrameStackWrapper(env, num_frames=4))
+    obs, _, timestep = _run_vec_reset_step(vec_env)
+    single_shape = env.observation_space.shape
+    assert obs.shape == (NUM_ENVS, 4, *single_shape)
+    assert timestep.observation.shape == (NUM_ENVS, 4, *single_shape)
+
+
+def test_frame_stack_wrapper_rejects_vectorized_env():
+    with pytest.raises(ValueError, match="before vectorization"):
+        jym.FrameStackWrapper(jym.VecEnvWrapper(_make_base_env()))
