@@ -1,6 +1,8 @@
+from collections.abc import Mapping
 from typing import Any
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import PRNGKeyArray
@@ -31,6 +33,16 @@ class BraxWrapper(Wrapper):
 
     _env: Any
     max_episode_steps: int = 1000  # Brax defaults to 1000
+    _observation_shape: tuple[int, ...] = eqx.field(static=True, init=False)
+
+    def __post_init__(self):
+        # Brax `observation_size` performs a full `reset` on every access (and Playground
+        # does an `eval_shape` of it), so we determine the observation shape once at construction.
+        obs = jax.eval_shape(self._env.reset, jax.random.PRNGKey(0)).obs
+        if isinstance(obs, Mapping):
+            # Playground: {"state": ..., "privileged_state": ...}
+            obs = obs["state"]
+        self._observation_shape = tuple(obs.shape)
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, BraxWrapperState]:
         env_state = self._env.reset(key)
@@ -61,8 +73,9 @@ class BraxWrapper(Wrapper):
 
     @property
     def observation_space(self) -> Any:
-        shape = (self._env.observation_size,)
-        return Box(low=-np.inf, high=np.inf, shape=shape, dtype=jnp.float32)
+        return Box(
+            low=-np.inf, high=np.inf, shape=self._observation_shape, dtype=jnp.float32
+        )
 
     @property
     def action_space(self) -> Any:
