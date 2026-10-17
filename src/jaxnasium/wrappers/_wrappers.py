@@ -962,3 +962,147 @@ class StackActionSpaceWrapper(Wrapper):
     def original_action_space(self) -> Space | PyTree[Space]:
         """Return the original action space of the environment."""
         return self._env.action_space
+
+
+class FrameStackState(eqx.Module, Generic[TEnvState]):
+    env_state: TEnvState
+    frames: PyTree[Array]  # per observation leaf: (num_frames, *shape), oldest first
+
+    @classmethod
+    def full_like(
+        cls, env_state: TEnvState, obs: PyTree[Array], num_frames: int
+    ) -> "FrameStackState[TEnvState]":
+        """A stack with every frame set to `obs`, used at the start of an episode."""
+        frames = jax.tree.map(
+            lambda x: jnp.repeat(jnp.asarray(x)[None], num_frames, axis=0), obs
+        )
+        return cls(env_state, frames)
+
+    def push(
+        self, env_state: TEnvState, obs: PyTree[Array]
+    ) -> "FrameStackState[TEnvState]":
+        """The stack with its oldest frame dropped and `obs` appended."""
+        frames = jax.tree.map(
+            lambda stack, x: jnp.concatenate([stack[1:], jnp.asarray(x)[None]]),
+            self.frames,
+            obs,
+        )
+        return FrameStackState(env_state, frames)
+
+
+def _stack_space(space: Space, num_frames: int) -> Space:
+    """The obs_space of `num_frames` stacked observations from `space`."""
+    k = num_frames
+    if isinstance(space, Box):
+
+        def stack_bound(bound):
+            if np.ndim(bound) == 0:  # a scalar bound already covers every frame
+                return bound
+            return np.broadcast_to(bound, (k, *space.shape)).copy()
+
+        return Box(
+            low=stack_bound(space.low),
+            high=stack_bound(space.high),
+            shape=(k, *space.shape),
+            dtype=space.dtype,
+        )
+    if isinstance(space, Discrete):
+        return MultiDiscrete(nvec=np.full(k, space.n), dtype=space.dtype)
+    if isinstance(space, MultiDiscrete):
+        nvec = np.broadcast_to(np.asarray(space.nvec), (k, *space.shape)).copy()
+        stacked = MultiDiscrete(nvec=nvec, dtype=space.dtype)
+        stacked.shape = (k, *space.shape)  # MultiDiscrete infers a 1D shape
+        return stacked
+    raise NotImplementedError(
+        f"FrameStackWrapper cannot stack observation space {type(space).__name__}"
+    )
+
+
+class FrameStackWrapper(Wrapper):
+    """Stack the last `num_frames` observations along a new leading axis, like
+    `gymnasium.wrappers.FrameStackObservation`.
+
+    Each observation leaf of shape `shape` becomes `(num_frames, *shape)`, ordered from
+    oldest to newest, so `obs[-1]` is always the current frame. At the start of an
+    episode the stack is filled by repeating the first frame. Action masks are not
+    stacked, as they only apply to the current step.
+
+    The wrapped environment resets itself, so episode boundaries are detected from
+    `terminated`/`truncated` and the stack is refilled there. The terminal observation
+    in `info` is stacked as well, so bootstrapping on truncation sees the full stack.
+
+    Apply this before vectorization (`VecEnvWrapper`); the algorithms add that themselves.
+
+    **Arguments:**
+
+    - `_env`: Environment to wrap.
+    - `num_frames`: Number of frames to stack. Default is 4.
+    """
+
+    num_frames: int = eqx.field(static=True, default=4)
+
+    def __check_init__(self):
+        if self.num_frames < 1:
+            raise ValueError(f"num_frames must be at least 1, got {self.num_frames}")
+        vectorized_gymnasium = is_wrapped(self._env, "GymnasiumWrapper") and (
+            getattr(self._env, "_internal_num_envs", None) is not None
+        )
+        if is_wrapped(self._env, VecEnvWrapper) or vectorized_gymnasium:
+            raise ValueError(
+                "FrameStackWrapper must be applied before vectorization, as it stacks "
+                "along the leading axis of a single environment's observation."
+            )
+
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, FrameStackState]:
+        obs, env_state = self._env.reset(key)
+        obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
+        state = FrameStackState.full_like(env_state, obs, self.num_frames)
+        return eqx.combine(state.frames, masks), state
+
+    def step(
+        self,
+        key: PRNGKeyArray,
+        state: FrameStackState,
+        action: PyTree[int | float | Array],
+    ) -> tuple[TimeStep, FrameStackState]:
+        timestep, env_state = self._env.step(key, state.env_state, action)
+        multi_agent = self._env.multi_agent
+
+        # We need to "recatch" the done here so that we can (if done) return a stack
+        # of the first obs again, rather than pushing a new obs on the stack.
+        done = jax.tree.map(jnp.logical_or, timestep.terminated, timestep.truncated)
+        done = reduce(jnp.logical_and, jax.tree.leaves(done))
+        obs, masks = partition_obs_and_masks(timestep.observation, multi_agent)
+        frames = jax.lax.cond(
+            done,
+            lambda: FrameStackState.full_like(env_state, obs, self.num_frames).frames,
+            lambda: state.push(env_state, obs).frames,
+        )
+        new_state = FrameStackState(env_state, frames)
+
+        # The terminal observation completes the previous stack.
+        info = timestep.info
+        if ORIGINAL_OBSERVATION_KEY in info:
+            terminal, terminal_masks = partition_obs_and_masks(
+                info[ORIGINAL_OBSERVATION_KEY], multi_agent
+            )
+            terminal = state.push(env_state, terminal).frames
+            info = {
+                **info,
+                ORIGINAL_OBSERVATION_KEY: eqx.combine(terminal, terminal_masks),
+            }
+
+        timestep = timestep._replace(
+            observation=eqx.combine(new_state.frames, masks), info=info
+        )
+        return timestep, new_state
+
+    @property
+    def observation_space(self) -> Space | PyTree[Space]:
+        space, masks = partition_obs_and_masks(
+            self._env.observation_space, self._env.multi_agent
+        )
+        stacked = jax.tree.map(
+            lambda s: _stack_space(s, self.num_frames), space, is_leaf=_is_space
+        )
+        return eqx.combine(stacked, masks)

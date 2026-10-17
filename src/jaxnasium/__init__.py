@@ -24,6 +24,7 @@ from .wrappers import (
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
+    FrameStackWrapper as FrameStackWrapper,
     LogWrapper as LogWrapper,
     MetaParamsWrapper as MetaParamsWrapper,
     NormalizeVecObsWrapper as NormalizeVecObsWrapper,
