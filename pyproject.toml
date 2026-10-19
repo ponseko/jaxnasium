@@ -8,13 +8,14 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "create-rl-app",
-    "equinox>=0.12.1,!=0.13.3",
+    "create-rl-app>=0.1.0",
+    "equinox>=0.12.2,!=0.13.3",
     "jax>=0.5.2,!=0.7.*,!=0.9.*",
 ]
 
 [project.optional-dependencies]
 algs = [
+    "jax>=0.8.2",
     "distrax>=0.1.7",
     "optax>=0.2.5",
 ]
@@ -44,7 +45,7 @@ external = [
     "brax==0.14.2",
     "gym==0.26.2",
     "gymnax==0.0.9",
-    "jumanji==1.1.1",
+    "jumanji==1.1.2",
     "navix==0.7.4",
     "octax==0.1.1",
     "pgx==2.6.0",
