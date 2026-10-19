@@ -9,6 +9,24 @@ from jaxnasium._spaces import Box, Discrete
 from ._wrappers import Wrapper
 
 
+class _ByIdentity:
+    """Makes jax treat `obj` as a single static leaf, compared by identity.
+
+    Fixes some compilation caching errors that occured in Navix due to jax.Arrays
+    being present in its spaces.
+    """
+
+    __slots__ = ("obj",)
+
+    def __init__(self, obj: Any):
+        self.obj = obj
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "obj":  # not yet set, e.g. during unpickling
+            raise AttributeError(name)
+        return getattr(self.obj, name)
+
+
 class NavixWrapper(Wrapper):
     """
     Wrapper for Navix environments to transform them into the Jaxnasium environment interface.
@@ -19,6 +37,10 @@ class NavixWrapper(Wrapper):
     """
 
     _env: Any
+
+    def __post_init__(self):
+        if not isinstance(self._env, _ByIdentity):
+            self._env = _ByIdentity(self._env)
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         timestep_navix = self._env.reset(key)
