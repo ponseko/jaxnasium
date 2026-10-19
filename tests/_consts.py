@@ -33,8 +33,8 @@ AGENT_MIN_CONFIG = {
 }
 
 
-# Skipped due some bugs in the environments
-SKIP_ENVS: dict[str, str] = {
+# Known bugs in the environments. Run as strict xfails
+KNOWN_FAILURES: dict[str, str] = {
     "SimpleBandit-bsuite": "bug on reset: https://github.com/RobertTLange/gymnax/issues/110",
     "storm": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
     "storm_2p": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
@@ -42,6 +42,7 @@ SKIP_ENVS: dict[str, str] = {
     "Tetris-v0": "Uses invalid jnp.clip call (older version)",
     "NoisyStatelessMetaCartPole": "Not runnable in newer jax versions > 0.10",
     "LeapCubeReorient": "Uses invalid jnp.clip call (older version)",
+    "safe_velocity_swimmer": "Uses invalid jnp.clip call (older version)",
 }
 
 # Skipped for some limatation in default configuration of algorithms

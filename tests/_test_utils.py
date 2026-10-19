@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from _consts import AGENT_MIN_CONFIG, SKIP_AGENT_ENVS, SKIP_ENVS
+from _consts import AGENT_MIN_CONFIG, KNOWN_FAILURES, SKIP_AGENT_ENVS
 
 import jaxnasium as jym
 from jaxnasium.algorithms import DQN, PPO, PQN, SAC, RLAgent, RLAlgorithm
@@ -24,12 +24,24 @@ def get_skip_envs(env_reason_dict: dict[str, str]) -> dict[str, str]:
     for pattern, value in env_reason_dict.items():
         if "_SUITE_" in pattern:
             suite = pattern.split(":")[1]
-            for env_id in registry_envs_for_package(suite):
+            for env_id in _registry_env_ids(suite):
                 skip_envs[env_id] = value
     return skip_envs
 
 
-def registry_envs_for_package(package: str) -> list[str]:
+def registry_envs_for_package(package: str) -> list:
+    """Sorted registry aliases of a package, as test params with id `package/env_id`.
+    Known failures are strict xfails."""
+    known_failures = get_skip_envs(KNOWN_FAILURES)
+    params = []
+    for env_id in _registry_env_ids(package):
+        reason = known_failures.get(env_id)
+        marks = [pytest.mark.xfail(reason=reason, strict=True)] if reason else []
+        params.append(pytest.param(env_id, id=f"{package}/{env_id}", marks=marks))
+    return params
+
+
+def _registry_env_ids(package: str) -> list[str]:
     """Return sorted registry aliases that resolve to an external package."""
     if package == "jaxnasium":
         return sorted(jym.registry._environments.keys())
@@ -274,9 +286,6 @@ def check_env(
     """
     if isinstance(env, str):
         env_id = env
-        skip_envs = get_skip_envs(SKIP_ENVS)
-        if env_id in skip_envs:
-            pytest.skip(f"Skipping {env_id}: {skip_envs[env_id]}")
         try:
             env = jym.make(env_id)
         except ImportError as e:
