@@ -39,6 +39,8 @@ KNOWN_FAILURES: dict[str, str] = {
     "storm": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
     "storm_2p": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
     "storm_np": "Bug, diff obs space from rest of envs, but also does not seem to align with the step output (?)",
+    "MPE_simple_facmac_6a_v1": "Declared observation space (16,) != returned observations (28,)",
+    "MPE_simple_facmac_9a_v1": "Declared observation space (16,) != returned observations (40,)",
     "Tetris-v0": "Uses invalid jnp.clip call (older version)",
     "NoisyStatelessMetaCartPole": "Not runnable in newer jax versions > 0.10",
     "LeapCubeReorient": "Uses invalid jnp.clip call (older version)",

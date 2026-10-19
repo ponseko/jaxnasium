@@ -1768,6 +1768,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cf/e0/f268ba1d8333a1f5901caa06b190497b4b01dc775fa50053e9f84096a4f5/jaxmarl-0.2.0-py3-none-any.whl", hash = "sha256:48c7747ee9ff144404c9ca70df07cc3a6b9f3cadca0ca945385e791fecedb327", size = 252531, upload-time = "2026-09-10T09:16:03.865Z" },
 ]
 
+[package.optional-dependencies]
+mabrax = [
+    { name = "brax" },
+]
+
 [[package]]
 name = "jaxnasium"
 version = "0.1.0"
@@ -1798,7 +1803,7 @@ envs = [
     { name = "factoriax" },
     { name = "gymnasium" },
     { name = "gymnax" },
-    { name = "jaxmarl" },
+    { name = "jaxmarl", extra = ["mabrax"] },
     { name = "jumanji" },
     { name = "navix" },
     { name = "octax" },
@@ -1822,7 +1827,7 @@ gymnax = [
     { name = "gymnax" },
 ]
 jaxmarl = [
-    { name = "jaxmarl" },
+    { name = "jaxmarl", extra = ["mabrax"] },
 ]
 jumanji = [
     { name = "jumanji" },
@@ -1888,7 +1893,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.5.2,!=0.7.*,!=0.9.*" },
     { name = "jax", marker = "extra == 'algs'", specifier = ">=0.8.2" },
     { name = "jax", extras = ["cuda"], marker = "extra == 'gpu'" },
-    { name = "jaxmarl", marker = "extra == 'jaxmarl'", specifier = ">=0.2.0" },
+    { name = "jaxmarl", extras = ["mabrax"], marker = "extra == 'jaxmarl'", specifier = ">=0.2.0" },
     { name = "jaxnasium", extras = ["brax", "envpool", "factoriax", "gymnasium", "gymnax", "jaxmarl", "jumanji", "navix", "octax", "pgx", "playground", "xminigrid"], marker = "extra == 'envs'" },
     { name = "jumanji", marker = "extra == 'jumanji'", specifier = ">=1.1.2" },
     { name = "navix", marker = "extra == 'navix'", specifier = ">=0.7.4" },
