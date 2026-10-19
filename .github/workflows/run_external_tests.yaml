@@ -10,6 +10,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
     name: test-external (${{ matrix.suite }})
     runs-on: ubuntu-latest
+    env:
+      # just some optimization :
+      XLA_FLAGS: --xla_backend_optimization_level=0
     strategy:
       fail-fast: false
       matrix:
@@ -43,6 +46,13 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --group dev --extra algs ${{ matrix.install }}
+
+      - name: Restore JAX compilation cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jaxnasium/jit-cache
+          key: jax-cache-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}
+          restore-keys: jax-cache-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}-
 
       - name: Run external tests
         env:
