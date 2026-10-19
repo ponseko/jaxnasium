@@ -89,7 +89,10 @@ def scan_callback(
             )
 
         returned_episode = np.asarray(data["returned_episode"])
-        returned_episode_returns = np.asarray(data["returned_episode_returns"])
+        # tree.map for multi-agent cases
+        returned_episode_returns = jax.tree.map(
+            np.asarray, data["returned_episode_returns"]
+        )
         timestep = np.asarray(data["timestep"])
         if timestep.ndim < returned_episode.ndim:
             timestep = np.broadcast_to(timestep[..., None], returned_episode.shape)

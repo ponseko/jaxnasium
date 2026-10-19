@@ -231,6 +231,29 @@ def test_log_wrapper():
         assert "timestep" in timestep.info
 
 
+class _BoolRewardWrapper(jym.Wrapper):
+    """Some upstream envs (e.g. gymnax FourRooms) return bool rewards."""
+
+    def step(self, key, state, action):
+        timestep, state = self._env.step(key, state, action)
+        return timestep._replace(reward=jnp.asarray(timestep.reward, bool)), state
+
+
+def test_log_wrapper_returns_are_scannable_for_bool_rewards():
+    env = jym.LogWrapper(_BoolRewardWrapper(_make_base_env()))
+
+    def step(state, key):
+        action_key, step_key = jax.random.split(key)
+        timestep, state = env.step(step_key, state, env.sample_action(action_key))
+        return state, timestep
+
+    _, state = env.reset(SEED)
+    # Carrying the state through a scan requires a dtype that is stable across steps
+    state, _ = jax.lax.scan(step, state, jax.random.split(SEED, 3))
+    assert state.episode_returns.dtype == jnp.float32  # type: ignore
+    assert state.returned_episode_returns.dtype == jnp.float32  # type: ignore
+
+
 def test_vec_env_wrapper():
     env = jym.VecEnvWrapper(_make_base_env())
 

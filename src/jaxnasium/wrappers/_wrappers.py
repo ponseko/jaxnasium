@@ -215,7 +215,11 @@ class LogWrapper(Wrapper):
             env_state,
         )
 
-        initial_returns = jym.tree.zeros_like(reward_template)
+        # Keep returns as float (in case they are returned as bool/int); to not break the scan
+        initial_returns = jax.tree.map(
+            lambda r: jnp.zeros(r.shape, jnp.promote_types(r.dtype, jnp.float32)),
+            reward_template,
+        )
         initial_lengths = jym.tree.zeros_like(reward_template, dtype=jnp.int32)
         state = LogEnvState(
             env_state=env_state,
