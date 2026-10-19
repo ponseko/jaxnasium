@@ -13,6 +13,11 @@ from jaxnasium._spaces import Box
 from ._wrappers import Wrapper
 
 
+def _state_obs(obs: Any) -> Any:
+    """Playground observations can be {"state": ..., "privileged_state": ...}; use the state."""
+    return obs["state"] if isinstance(obs, Mapping) else obs
+
+
 class BraxWrapperState(eqx.Module):
     brax_env_state: Any  # The state of the Brax environment
     timestep: int = 0
@@ -38,16 +43,13 @@ class BraxWrapper(Wrapper):
     def __post_init__(self):
         # Brax `observation_size` performs a full `reset` on every access (and Playground
         # does an `eval_shape` of it), so we determine the observation shape once at construction.
-        obs = jax.eval_shape(self._env.reset, jax.random.PRNGKey(0)).obs
-        if isinstance(obs, Mapping):
-            # Playground: {"state": ..., "privileged_state": ...}
-            obs = obs["state"]
+        obs = _state_obs(jax.eval_shape(self._env.reset, jax.random.PRNGKey(0)).obs)
         self._observation_shape = tuple(obs.shape)
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, BraxWrapperState]:
         env_state = self._env.reset(key)
         env_state = BraxWrapperState(brax_env_state=env_state, timestep=0)
-        return env_state.brax_env_state.obs, env_state
+        return _state_obs(env_state.brax_env_state.obs), env_state
 
     def step(
         self, key: PRNGKeyArray, state: BraxWrapperState, action: float
@@ -62,7 +64,7 @@ class BraxWrapper(Wrapper):
         info = dict(brax_env_state.info)
 
         timestep_step = TimeStep(
-            observation=brax_env_state.obs,
+            observation=_state_obs(brax_env_state.obs),
             reward=brax_env_state.reward,
             terminated=terminated,
             truncated=truncated,

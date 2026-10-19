@@ -218,7 +218,12 @@ class Registry:
             elif package == "playground":
                 import mujoco_playground  # type: ignore
 
-                env = mujoco_playground.registry.load(env_name, **env_kwargs)
+                # warp backend might be preferred; but won't work properly in all jax versions
+                overrides = env_kwargs.pop("config_overrides", None) or {}
+                overrides.setdefault("impl", "jax")
+                env = mujoco_playground.registry.load(
+                    env_name, config_overrides=overrides, **env_kwargs
+                )
                 if wrap:
                     return _wrap_env(env, PlaygroundWrapper)
                 return env  # type: ignore
