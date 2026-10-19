@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 from jaxnasium._environment import Observation, TEnvState, TimeStep
-from jaxnasium._spaces import MultiDiscrete, Space
+from jaxnasium._spaces import Box, MultiDiscrete, Space
 from jaxnasium._types import AgentObservation
 
 from ._util import gymnasium_to_jaxnasium_space
@@ -65,7 +65,7 @@ class JaxMARLWrapper(Wrapper):
             obs.pop("world_state")
 
         try:  # Some environments have an action mask
-            action_masks = self._env.get_avail_actions(state)
+            action_masks = self._env.get_avail_actions(state_step)
             obs = {k: AgentObservation(v, action_masks[k]) for k, v in obs.items()}
         except Exception:
             pass
@@ -96,8 +96,19 @@ class JaxMARLWrapper(Wrapper):
 
         # Only MultiDiscrete is special, rest is gymnasium spaces.
         obs_spaces = jax.tree.map(_convert_jaxmarl_multidiscrete, obs_spaces)
+        obs_spaces = gymnasium_to_jaxnasium_space(obs_spaces)
 
-        return gymnasium_to_jaxnasium_space(obs_spaces)  # type: ignore[reportGeneralTypeIssues]
+        try:  # Mirror the action masks that `reset` and `step` add to the observations
+            masks = jax.eval_shape(
+                lambda key: self._env.get_avail_actions(self._env.reset(key)[1]),
+                jax.random.PRNGKey(0),
+            )
+        except Exception:  # no action mask
+            return obs_spaces  # type: ignore[reportGeneralTypeIssues]
+        return {
+            a: AgentObservation(space, Box(0, 1, masks[a].shape, masks[a].dtype))
+            for a, space in obs_spaces.items()  # type: ignore[reportAttributeAccessIssue]
+        }
 
     @property
     def action_space(self) -> dict[str, Space]:
