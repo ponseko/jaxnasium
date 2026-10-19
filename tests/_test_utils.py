@@ -7,6 +7,7 @@ from typing import Any
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from _consts import AGENT_MIN_CONFIG, SKIP_AGENT_ENVS, SKIP_ENVS
 
@@ -47,18 +48,27 @@ def _shape_dtype(leaf) -> tuple[tuple[int, ...], Any]:
     return array.shape, array.dtype
 
 
-def _assert_equal_pytrees(reference, candidate, name: str = " ") -> None:
+def _assert_equal_pytrees(
+    reference, candidate, name: str = " ", *, strict_dtype: bool = True
+) -> None:
+    """Asserts equal structure, shapes and dtypes. With `strict_dtype=False` dtype mismatches only warn."""
     assert jax.tree.structure(reference) == jax.tree.structure(candidate), (
         f"Tree structure mismatch for {name}: {jax.tree.structure(reference)} != {jax.tree.structure(candidate)}"
     )
-    for ref_leaf, cand_leaf in zip(
-        jax.tree.leaves(reference), jax.tree.leaves(candidate), strict=True
+    dtype_mismatches = []
+    for (path, ref_leaf), cand_leaf in zip(
+        jax.tree_util.tree_leaves_with_path(reference),
+        jax.tree.leaves(candidate),
+        strict=True,
     ):
         ref_shape, ref_dtype = _shape_dtype(ref_leaf)
         cand_shape, cand_dtype = _shape_dtype(cand_leaf)
-        assert ref_dtype == cand_dtype, (
-            f"Tree dtype mismatch for {name}: {ref_dtype} != {cand_dtype}"
-        )
+        if ref_dtype != cand_dtype:
+            mismatch = (
+                f"{jax.tree_util.keystr(path) or '<root>'}: {ref_dtype} != {cand_dtype}"
+            )
+            assert not strict_dtype, f"Tree dtype mismatch for {name}: {mismatch}"
+            dtype_mismatches.append(mismatch)
         if (ref_shape == () and cand_shape == (1,)) or (
             ref_shape == (1,) and cand_shape == ()
         ):
@@ -71,6 +81,12 @@ def _assert_equal_pytrees(reference, candidate, name: str = " ") -> None:
             continue
         assert ref_shape == cand_shape, (
             f"Tree shape mismatch for {name}: {ref_shape} != {cand_shape}"
+        )
+    if dtype_mismatches:
+        warnings.warn(
+            f"Declared dtype != actual dtype for {name} ({'; '.join(dtype_mismatches)}). "
+            "This will not necessarily cause issues, but should likely be fixed in the "
+            "environment's space definition."
         )
 
 
@@ -163,6 +179,90 @@ def _run_agent_on_env(
     return eqx.filter_eval_shape(_test, key)
 
 
+ROLLOUT_NUM_ENVS = 2
+ROLLOUT_NUM_STEPS = 4
+
+
+def _rollout(env: jym.Environment, key: jax.Array, num_steps: int):
+    """Reset and step `env` with random actions, vectorized and scanned (same as algorithms would)."""
+    venv = jym.VecEnvWrapper(env)
+    reset_key, scan_key = jax.random.split(key)
+    obs, state = venv.reset(jax.random.split(reset_key, ROLLOUT_NUM_ENVS))
+
+    def step(state, key):
+        action_key, step_key = jax.random.split(key)
+        action_keys = jax.random.split(action_key, ROLLOUT_NUM_ENVS)
+        action = jax.vmap(env.sample_action)(action_keys)
+        step_keys = jax.random.split(step_key, ROLLOUT_NUM_ENVS)
+        timestep, state = venv.step(step_keys, state, action)
+        return state, timestep
+
+    _, timesteps = jax.lax.scan(step, state, jax.random.split(scan_key, num_steps))
+    return obs, timesteps
+
+
+def _assert_per_agent_scalars(
+    env: jym.Environment, tree, name: str, *, allow_shared: bool = False
+) -> None:
+    """`tree` holds one scalar per agent (or a single scalar shared by all agents)."""
+    structure = jax.tree.structure(tree)
+    allowed = (
+        {env.agent_structure, jax.tree.structure(0)}
+        if allow_shared
+        else {env.agent_structure}
+    )
+    assert structure in allowed, (
+        f"{name} structure {structure} != agent structure {env.agent_structure}"
+    )
+    for leaf in jax.tree.leaves(tree):
+        assert np.shape(leaf) in ((), (1,)), f"{name} is not a scalar: {np.shape(leaf)}"
+
+
+def _check_env_rollout(env: jym.Environment, env_id: str) -> None:
+    """Actually runs the env as a single compiled program and checks if everything
+    is present and finite.
+    Checks what is returns matches the declared spaces. Other agent checks depend
+    on these spaces being correct.
+    """
+
+    # Do rollout and put on host so checks can happen w/ numpy to prevent eager compilations
+    rollout = eqx.filter_jit(_rollout)(env, SEED, ROLLOUT_NUM_STEPS)
+    obs, timesteps = jax.device_get(rollout)
+
+    # strip (step, env) batch dimensions:
+    obs = jax.tree.map(lambda x: x[0], obs)
+    first, last = (jax.tree.map(lambda x, i=i: x[i, 0], timesteps) for i in (0, -1))
+
+    # declaration can in theory be off, will not break learning; so strict_dtype=False
+    reference = jax.eval_shape(env.sample_observation, SEED)
+    _assert_equal_pytrees(
+        reference, obs, f"reset observation of {env_id}", strict_dtype=False
+    )
+
+    # env must be consistent for `lax.scan` to not break:
+    _assert_equal_pytrees(obs, last.observation, f"step observation of {env_id}")
+    assert jym.ORIGINAL_OBSERVATION_KEY in first.info, (
+        f"ORIGINAL_OBSERVATION_KEY not in timestep.info for {env_id}"
+    )
+    _assert_equal_pytrees(
+        obs,
+        first.info[jym.ORIGINAL_OBSERVATION_KEY],
+        f"info[ORIGINAL_OBSERVATION_KEY] of {env_id}",
+    )
+    _assert_per_agent_scalars(env, first.reward, f"reward of {env_id}")
+    for field in ("terminated", "truncated"):  # The algorithms broadcast a shared done
+        _assert_per_agent_scalars(
+            env, getattr(first, field), f"{field} of {env_id}", allow_shared=True
+        )
+
+    rewards = jax.tree.leaves(timesteps.reward)
+    assert all(np.isfinite(r).all() for r in rewards), f"Non-finite reward in {env_id}"
+    observations = [*jax.tree.leaves(obs), *jax.tree.leaves(timesteps.observation)]
+    assert not any(np.isnan(o).any() for o in observations), (
+        f"NaN observation in {env_id}"
+    )
+
+
 def check_env(
     env: jym.Environment | str,
     *,
@@ -187,21 +287,13 @@ def check_env(
     if flatten_obs:
         env = jym.wrappers.FlattenObservationWrapper(env)
 
-    reset_key, action_key, step_key = jax.random.split(SEED, 3)
-
     if run_env:
-        _obs, reset_state = env.reset(reset_key)
-        timestep, _state = env.step(
-            step_key, reset_state, env.sample_action(action_key)
-        )
-        assert jym.ORIGINAL_OBSERVATION_KEY in timestep.info, (
-            f"ORIGINAL_OBSERVATION_KEY not in timestep.info for {env_id}"
-        )
+        _check_env_rollout(env, env_id)
 
     if env_id in get_skip_envs(SKIP_AGENT_ENVS):
         return
 
-    reference = jax.eval_shape(env.sample_action, action_key)
+    reference = jax.eval_shape(env.sample_action, SEED)
     for alg_cls in get_valid_test_algs(env):
         alg: RLAlgorithm = alg_cls()  # type: ignore[operator]
         action = _run_agent_on_env(env, alg, SEED)
