@@ -24,7 +24,11 @@ env = jym.LogWrapper(env)
 
 ::: jaxnasium.NormalizeVecRewardWrapper
 
+::: jaxnasium.TransformObservationWrapper
+
 ::: jaxnasium.FlattenObservationWrapper
+
+::: jaxnasium.FrameStackWrapper
 
 ::: jaxnasium.TransformRewardWrapper
 
