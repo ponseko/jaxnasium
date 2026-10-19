@@ -212,7 +212,7 @@ wheels = [
 [[package]]
 name = "chargax"
 version = "0.3.10"
-source = { git = "https://github.com/ponseko/chargax#f3c9f26005162259bc880c81c72f49983b306e8e" }
+source = { git = "https://github.com/ponseko/chargax?rev=f3c9f26005162259bc880c81c72f49983b306e8e#f3c9f26005162259bc880c81c72f49983b306e8e" }
 dependencies = [
     { name = "jax-datetime" },
     { name = "jaxnasium", extra = ["algs"] },
@@ -596,7 +596,7 @@ wheels = [
 [[package]]
 name = "crax"
 version = "0.1.0"
-source = { git = "https://github.com/TTomilin/CRAX#7c12acd8d183810ca896038a3e85d3fe06bece79" }
+source = { git = "https://github.com/TTomilin/CRAX?rev=7c12acd8d183810ca896038a3e85d3fe06bece79#7c12acd8d183810ca896038a3e85d3fe06bece79" }
 dependencies = [
     { name = "absl-py" },
     { name = "etils" },
@@ -747,7 +747,7 @@ wheels = [
 [[package]]
 name = "econojax"
 version = "0.1.1"
-source = { git = "https://github.com/ponseko/econojax#111600b7d063ba42c6543a89f3d3a1d699b6380e" }
+source = { git = "https://github.com/ponseko/econojax?rev=111600b7d063ba42c6543a89f3d3a1d699b6380e#111600b7d063ba42c6543a89f3d3a1d699b6380e" }
 dependencies = [
     { name = "jaxnasium", extra = ["algs"] },
 ]
@@ -1149,27 +1149,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2b/27/b55f1a5278918be765fb2fd8b20966bc72bbdd3f789f031937cceea7834a/griffelib-2.3.2.tar.gz", hash = "sha256:df00c7a0dee3d86268d76788997a1859272cb1fb7b865658e043d2c0c3d52e60", size = 234729, upload-time = "2026-10-06T09:54:37.222Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/04/e5/0ae74c83c1cab2c14daadf28bd0143eb14bb81503834af987b66badc7b61/griffelib-2.3.2-py3-none-any.whl", hash = "sha256:8e710afededd5607f95bf3c8ccc175ee306e7084459faf27b9f9f44ef2a7a274", size = 169420, upload-time = "2026-10-06T09:54:32.038Z" },
-]
-
-[[package]]
-name = "gym"
-version = "0.26.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cloudpickle" },
-    { name = "gym-notices" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/b1/eb05a423eb801ab7d0715d6a3b28d92589e30b437052553df19ca2087240/gym-0.26.2.tar.gz", hash = "sha256:e0d882f4b54f0c65f203104c24ab8a38b039f1289986803c7d02cdbe214fbcc4", size = 721689, upload-time = "2022-10-04T23:57:43.247Z" }
-
-[[package]]
-name = "gym-notices"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a2/4d/035922b950b224ee4b65a9a4550a22eac8985a3f0e1ef42546d9047e7a72/gym_notices-0.1.0.tar.gz", hash = "sha256:9f9477ef68a8c15e42625d4fa53631237e3e6ae947f325b5c149c081499adc1b", size = 3084, upload-time = "2025-07-27T10:12:41.534Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/55/55d157aa8693090954fc9639bf27218240517c3bc7afa6e97412da6ebfd9/gym_notices-0.1.0-py3-none-any.whl", hash = "sha256:a943af4446cb619d04fd1e470b9272b4473e08a06d1c7cc9005755a4a0b8c905", size = 3349, upload-time = "2025-07-27T10:12:40.039Z" },
 ]
 
 [[package]]
@@ -1807,9 +1786,63 @@ algs = [
     { name = "jax", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "optax" },
 ]
+brax = [
+    { name = "brax" },
+]
+envpool = [
+    { name = "envpool" },
+]
+envs = [
+    { name = "brax" },
+    { name = "envpool" },
+    { name = "factoriax" },
+    { name = "gymnasium" },
+    { name = "gymnax" },
+    { name = "jaxmarl" },
+    { name = "jumanji" },
+    { name = "navix" },
+    { name = "octax" },
+    { name = "opencv-python-headless" },
+    { name = "pgx" },
+    { name = "pillow" },
+    { name = "playground" },
+    { name = "xminigrid" },
+]
+factoriax = [
+    { name = "factoriax" },
+]
 gpu = [
     { name = "jax", version = "0.10.2", source = { registry = "https://pypi.org/simple" }, extra = ["cuda"], marker = "python_full_version < '3.12'" },
     { name = "jax", version = "0.11.2", source = { registry = "https://pypi.org/simple" }, extra = ["cuda"], marker = "python_full_version >= '3.12'" },
+]
+gymnasium = [
+    { name = "gymnasium" },
+]
+gymnax = [
+    { name = "gymnax" },
+]
+jaxmarl = [
+    { name = "jaxmarl" },
+]
+jumanji = [
+    { name = "jumanji" },
+]
+navix = [
+    { name = "navix" },
+]
+octax = [
+    { name = "octax" },
+    { name = "opencv-python-headless" },
+    { name = "pillow" },
+]
+pgx = [
+    { name = "pgx" },
+]
+playground = [
+    { name = "playground" },
+]
+xminigrid = [
+    { name = "xminigrid" },
 ]
 
 [package.dev-dependencies]
@@ -1823,37 +1856,51 @@ dev = [
     { name = "ruff" },
     { name = "tqdm" },
 ]
+ext-crax = [
+    { name = "crax" },
+]
+ext-extra-libs = [
+    { name = "chargax" },
+    { name = "econojax" },
+    { name = "rice-jax" },
+]
+ext-popjym = [
+    { name = "popjym" },
+]
 external = [
-    { name = "brax" },
     { name = "chargax" },
     { name = "crax" },
     { name = "econojax" },
-    { name = "envpool" },
-    { name = "factoriax" },
-    { name = "gym" },
-    { name = "gymnax" },
-    { name = "jaxmarl" },
-    { name = "jumanji" },
-    { name = "navix" },
-    { name = "octax" },
-    { name = "pgx" },
-    { name = "playground" },
     { name = "popjym" },
     { name = "rice-jax" },
-    { name = "xminigrid" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "brax", marker = "extra == 'brax'", specifier = ">=0.14.2" },
     { name = "create-rl-app", specifier = ">=0.1.0" },
     { name = "distrax", marker = "extra == 'algs'", specifier = ">=0.1.7" },
+    { name = "envpool", marker = "extra == 'envpool'", specifier = ">=1.2.5,!=1.2.6" },
     { name = "equinox", specifier = ">=0.12.2,!=0.13.3" },
+    { name = "factoriax", marker = "extra == 'factoriax'", specifier = ">=0.1.0" },
+    { name = "gymnasium", marker = "extra == 'gymnasium'", specifier = ">=1.1.0" },
+    { name = "gymnax", marker = "extra == 'gymnax'", specifier = ">=0.0.9" },
     { name = "jax", specifier = ">=0.5.2,!=0.7.*,!=0.9.*" },
     { name = "jax", marker = "extra == 'algs'", specifier = ">=0.8.2" },
     { name = "jax", extras = ["cuda"], marker = "extra == 'gpu'" },
+    { name = "jaxmarl", marker = "extra == 'jaxmarl'", specifier = ">=0.2.0" },
+    { name = "jaxnasium", extras = ["brax", "envpool", "factoriax", "gymnasium", "gymnax", "jaxmarl", "jumanji", "navix", "octax", "pgx", "playground", "xminigrid"], marker = "extra == 'envs'" },
+    { name = "jumanji", marker = "extra == 'jumanji'", specifier = ">=1.1.2" },
+    { name = "navix", marker = "extra == 'navix'", specifier = ">=0.7.4" },
+    { name = "octax", marker = "extra == 'octax'", specifier = ">=0.1.1" },
+    { name = "opencv-python-headless", marker = "extra == 'octax'", specifier = ">=4.10.0.84" },
     { name = "optax", marker = "extra == 'algs'", specifier = ">=0.2.5" },
+    { name = "pgx", marker = "extra == 'pgx'", specifier = ">=2.6.0" },
+    { name = "pillow", marker = "extra == 'octax'", specifier = ">=10.0.0" },
+    { name = "playground", marker = "extra == 'playground'", specifier = ">=0.2.0" },
+    { name = "xminigrid", marker = "extra == 'xminigrid'", specifier = ">=0.9.3" },
 ]
-provides-extras = ["algs", "gpu"]
+provides-extras = ["algs", "gpu", "brax", "envpool", "factoriax", "gymnasium", "gymnax", "jaxmarl", "jumanji", "navix", "octax", "pgx", "playground", "xminigrid", "envs"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1866,24 +1913,19 @@ dev = [
     { name = "ruff", specifier = ">=0.11.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
+ext-crax = [{ name = "crax", git = "https://github.com/TTomilin/CRAX?rev=7c12acd8d183810ca896038a3e85d3fe06bece79" }]
+ext-extra-libs = [
+    { name = "chargax", git = "https://github.com/ponseko/chargax?rev=f3c9f26005162259bc880c81c72f49983b306e8e" },
+    { name = "econojax", git = "https://github.com/ponseko/econojax?rev=111600b7d063ba42c6543a89f3d3a1d699b6380e" },
+    { name = "rice-jax", git = "https://github.com/mila-iqia/climate-cooperation-competition?subdirectory=rice_jax&rev=7c70e350292c0e361dfedc5fe0180239894db594" },
+]
+ext-popjym = [{ name = "popjym", git = "https://github.com/FLAIROx/popjym?rev=d7b23ba2ba663628c168897a914f1a0998643265" }]
 external = [
-    { name = "brax", specifier = "==0.14.2" },
-    { name = "chargax", git = "https://github.com/ponseko/chargax" },
-    { name = "crax", git = "https://github.com/TTomilin/CRAX" },
-    { name = "econojax", git = "https://github.com/ponseko/econojax" },
-    { name = "envpool", specifier = "==1.2.5,!=1.2.6" },
-    { name = "factoriax", specifier = "==0.1.0" },
-    { name = "gym", specifier = "==0.26.2" },
-    { name = "gymnax", specifier = "==0.0.9" },
-    { name = "jaxmarl", specifier = "==0.2.0" },
-    { name = "jumanji", specifier = "==1.1.2" },
-    { name = "navix", specifier = "==0.7.4" },
-    { name = "octax", specifier = "==0.1.1" },
-    { name = "pgx", specifier = "==2.6.0" },
-    { name = "playground", specifier = "==0.2.0" },
-    { name = "popjym", git = "https://github.com/FLAIROx/popjym" },
-    { name = "rice-jax", git = "https://github.com/mila-iqia/climate-cooperation-competition?subdirectory=rice_jax&branch=GAIA_jax" },
-    { name = "xminigrid", specifier = "==0.9.3" },
+    { name = "chargax", git = "https://github.com/ponseko/chargax?rev=f3c9f26005162259bc880c81c72f49983b306e8e" },
+    { name = "crax", git = "https://github.com/TTomilin/CRAX?rev=7c12acd8d183810ca896038a3e85d3fe06bece79" },
+    { name = "econojax", git = "https://github.com/ponseko/econojax?rev=111600b7d063ba42c6543a89f3d3a1d699b6380e" },
+    { name = "popjym", git = "https://github.com/FLAIROx/popjym?rev=d7b23ba2ba663628c168897a914f1a0998643265" },
+    { name = "rice-jax", git = "https://github.com/mila-iqia/climate-cooperation-competition?subdirectory=rice_jax&rev=7c70e350292c0e361dfedc5fe0180239894db594" },
 ]
 
 [[package]]
@@ -3241,6 +3283,26 @@ wheels = [
 ]
 
 [[package]]
+name = "opencv-python-headless"
+version = "5.0.0.93"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1d/99/76b7c80252aa83c1af16393454aafd125a0287101afe8deb0a6821af0e30/opencv_python_headless-5.0.0.93.tar.gz", hash = "sha256:b82f9831daab90b725c7c1ee1b36cb5732c367096ac76d119e64e14eb70d5f3c", size = 81817738, upload-time = "2026-07-02T07:01:06.039Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/53/7c/8c8097891c509d98cd128493835c95631c80be6a8f37ed9d25716c2e16f1/opencv_python_headless-5.0.0.93-cp37-abi3-macosx_13_0_arm64.whl", hash = "sha256:030ca5e0837a2963ab36ef896baa9767eb8d2b83353fb28af5a521e40dd8756f", size = 48322581, upload-time = "2026-07-02T05:50:34.207Z" },
+    { url = "https://files.pythonhosted.org/packages/90/8c/eab2ad388c3cbab2a350c10c2ef19ce6bd099240afc31789032c996bab52/opencv_python_headless-5.0.0.93-cp37-abi3-macosx_14_0_x86_64.whl", hash = "sha256:1e55af3abfb462eeeabe5c775f12bdb36216d8a93a3583d69e6bd6e1d6ba7d00", size = 34782894, upload-time = "2026-07-02T05:51:39.856Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/78/afca939f40ffe2b2380bfa86f812b2f7d4acc5a27b27dc41b49cad7ce7b4/opencv_python_headless-5.0.0.93-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:10818d91510e05c04568ae12b5cd120779c70c01bf897b001a6221fe430df80f", size = 36521085, upload-time = "2026-07-02T06:55:24.429Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/97/8170e9819764c47e436c130d3ff6cfb73b58f923eae9d3a03d8982b04aec/opencv_python_headless-5.0.0.93-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:09a872a157c1376ab922a69bbf22f9a95bcc7b658a9d8b436a60212b02b2eeb4", size = 56563598, upload-time = "2026-07-02T06:55:47.355Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/98/1a28a7101e31801042b3098871a74b76c61581d328ef40774ff4edb53a56/opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:840bd717c21e5c11cadadc022a823315ea417f961213d06b4df010e019eb16f4", size = 39648433, upload-time = "2026-07-02T06:56:04.255Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/21/f6ef335f6e65724aa78b8d792b48d40a48c381715f1e62f5a5049e09d07e/opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:ed709fdf9aa0bd1f2ed8549e71d19449b03a675bb581eb292285f6861953be37", size = 61204038, upload-time = "2026-07-02T06:56:41.823Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/8f/b8756467ea991449a293797f6b3fa80fcfdd29598a0a60d1cd5715b96e61/opencv_python_headless-5.0.0.93-cp37-abi3-win32.whl", hash = "sha256:c6bcd96b185975ea240d22cfdb15a1f6d080cc95264cfbe2621f21bb144d89b9", size = 35411237, upload-time = "2026-07-02T05:50:12.901Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/88/763b967f7efd7226b82c9fae16d560cba049b1f0c036647e65c610fd636e/opencv_python_headless-5.0.0.93-cp37-abi3-win_amd64.whl", hash = "sha256:829717b6a95554f273e49e357cee3b3a2a26b6f4842fbc1bed2b45bdd8f87e0e", size = 43825962, upload-time = "2026-07-02T05:50:09.627Z" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.45.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3862,7 +3924,7 @@ wheels = [
 [[package]]
 name = "popjym"
 version = "0.0.1"
-source = { git = "https://github.com/FLAIROx/popjym#d7b23ba2ba663628c168897a914f1a0998643265" }
+source = { git = "https://github.com/FLAIROx/popjym?rev=d7b23ba2ba663628c168897a914f1a0998643265#d7b23ba2ba663628c168897a914f1a0998643265" }
 dependencies = [
     { name = "flax", version = "0.12.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "flax", version = "0.12.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -4385,7 +4447,7 @@ wheels = [
 [[package]]
 name = "rice-jax"
 version = "0.1.1"
-source = { git = "https://github.com/mila-iqia/climate-cooperation-competition?subdirectory=rice_jax&branch=GAIA_jax#7c70e350292c0e361dfedc5fe0180239894db594" }
+source = { git = "https://github.com/mila-iqia/climate-cooperation-competition?subdirectory=rice_jax&rev=7c70e350292c0e361dfedc5fe0180239894db594#7c70e350292c0e361dfedc5fe0180239894db594" }
 dependencies = [
     { name = "jaxnasium", extra = ["algs"] },
     { name = "matplotlib" },

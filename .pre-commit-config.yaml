@@ -9,6 +9,10 @@ repos:
         exclude: ^uv\.lock$
         types_or: [python, pyi, jupyter, toml]
         args: [--fix]
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.12.5
+    hooks:
+      - id: uv-lock # keep uv.lock in sync with pyproject.toml (no upgrades)
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.400
     hooks:
