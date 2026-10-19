@@ -7,6 +7,9 @@ import jaxnasium as jym
 from jaxnasium.algorithms import PPO
 from jaxnasium.wrappers import GymnasiumWrapper
 
+# Only run these in "external" mode
+pytestmark = pytest.mark.external
+
 gymnasium = pytest.importorskip("gymnasium")
 
 
