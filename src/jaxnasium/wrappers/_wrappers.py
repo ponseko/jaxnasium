@@ -66,6 +66,12 @@ class Wrapper(Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+    @property
+    def state_type(self):
+        raise TypeError(
+            "Cannot access `state_type` of a wrapper; access it on the wrapped environment instead."
+        )
+
 
 def is_wrapped(wrapped_env: Environment, wrapper_class: type | str) -> bool:
     """
