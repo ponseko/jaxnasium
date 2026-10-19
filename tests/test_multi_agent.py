@@ -6,11 +6,13 @@ from _proxy_test_envs import (
     obs_ma_dict_heterogeneous,
     obs_ma_dict_homogeneous,
 )
+from jaxtyping import Array
 
 from jaxnasium import AgentObservation
 from jaxnasium.algorithms import DQN
 from jaxnasium.algorithms.core import Transition, _multi_agent
 from jaxnasium.algorithms.core._multi_agent import MultiAgentWrapper, map_multi_agent
+from jaxnasium.algorithms.dqn import DQNAgent
 
 SEED = jax.random.PRNGKey(0)
 
@@ -180,6 +182,20 @@ def test_collective_methods_are_not_dispatched_per_agent():
     assert not hasattr(agent.get_action, "__self__")
 
 
+class CollectiveOverrideAgent(DQNAgent):
+    # Overrides a `@collective` method without repeating the decorator
+    def evaluate(self, *args, **kwargs):
+        return super().evaluate(*args, **kwargs)
+
+
+def test_overriding_a_collective_method_keeps_it_collective():
+    agent = DQN(**SMALL_DQN, agent_type=CollectiveOverrideAgent).init_agent(
+        SEED, _ma_env()
+    )
+    assert isinstance(agent, MultiAgentWrapper)
+    assert getattr(agent.evaluate, "__self__", None) is agent
+
+
 def test_multi_agent_train_runs_a_single_loop():
     env = _ma_env()
     agent, _ = DQN(**SMALL_DQN).train(SEED, env)
@@ -216,6 +232,28 @@ def test_per_agent_hyperparameters_reach_each_agent():
     assert {k: a.trainer.gamma for k, a in agent.agents.items()} == gamma
     # the team trainer keeps what the user configured, unsplit
     assert agent.trainer.gamma == gamma
+
+
+class CountingDQNAgent(DQNAgent):
+    """Counts its updates, to show that the override runs inside the training loop."""
+
+    num_updates: Array
+
+    def __init__(self, key, env, trainer):
+        super().__init__(key, env, trainer)
+        self.num_updates = jnp.array(0)
+
+    def update_params(self, batch: Transition):
+        agent = super().update_params(batch)
+        return agent.replace(num_updates=agent.num_updates + 1)
+
+
+def test_per_agent_agent_types():
+    agent_type = {"agent_0": DQNAgent, "agent_1": CountingDQNAgent}
+    agent, _ = DQN(**SMALL_DQN, agent_type=agent_type).train(SEED, _ma_env())
+    assert isinstance(agent, MultiAgentWrapper)
+    assert {k: type(a) for k, a in agent.agents.items()} == agent_type
+    assert int(agent.agents["agent_1"].num_updates) > 0
 
 
 def test_with_hyperparams_keeps_team_and_agents_in_sync():

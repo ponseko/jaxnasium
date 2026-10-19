@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 QLambdaCarry = namedtuple("QLambdaCarry", ["next_return", "q_lambda"])
 
 
-class PQN(RLAlgorithm):
+class PQN(RLAlgorithm["PQNAgent"]):
     """Parallel Q-Network (PQN) algorithm implementation."""
 
     learning_rate_start: float = 2.5e-4
@@ -58,6 +58,9 @@ class PQN(RLAlgorithm):
     normalize_rewards: bool = eqx.field(static=True, default=True)
 
     critic_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
+    agent_type: type[PQNAgent] | PyTree[type[PQNAgent]] = eqx.field(
+        static=True, kw_only=True, default_factory=lambda: PQNAgent
+    )
 
     @property
     def learning_rate_schedule(self):
@@ -102,10 +105,6 @@ class PQN(RLAlgorithm):
     @property
     def num_training_updates(self):
         return self.num_iterations * self.num_epochs * self.num_minibatches
-
-    @eqx.filter_jit
-    def init_agent(self, key: PRNGKeyArray, env: Environment) -> PQNAgent:
-        return PQNAgent(key=key, env=env, trainer=self)
 
     @eqx.filter_jit
     def train(

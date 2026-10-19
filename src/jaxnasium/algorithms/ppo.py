@@ -28,7 +28,7 @@ from .agent_networks import ActorNetwork, ValueNetwork
 logger = logging.getLogger(__name__)
 
 
-class PPO(RLAlgorithm):
+class PPO(RLAlgorithm["PPOAgent"]):
     """Proximal Policy Optimization (PPO) algorithm implementation."""
 
     learning_rate_start: float = 2.5e-4
@@ -55,6 +55,9 @@ class PPO(RLAlgorithm):
 
     actor_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
     critic_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
+    agent_type: type[PPOAgent] | PyTree[type[PPOAgent]] = eqx.field(
+        static=True, kw_only=True, default_factory=lambda: PPOAgent
+    )
 
     @property
     def learning_rate_schedule(self):
@@ -96,10 +99,6 @@ class PPO(RLAlgorithm):
     @property
     def num_training_updates(self):
         return self.num_iterations * self.num_epochs * self.num_minibatches
-
-    @eqx.filter_jit
-    def init_agent(self, key: PRNGKeyArray, env: Environment) -> PPOAgent:
-        return PPOAgent(key=key, env=env, trainer=self)
 
     @eqx.filter_jit
     def train(

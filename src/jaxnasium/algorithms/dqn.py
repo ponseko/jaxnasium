@@ -27,7 +27,7 @@ from .agent_networks import QValueNetwork
 logger = logging.getLogger(__name__)
 
 
-class DQN(RLAlgorithm):
+class DQN(RLAlgorithm["DQNAgent"]):
     """Deep Q-Network (DQN) algorithm implementation.
 
     This implementation uses target networks with soft updates (polyak averaging),
@@ -56,6 +56,9 @@ class DQN(RLAlgorithm):
     normalize_rewards: bool = eqx.field(static=True, default=False)
 
     critic_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
+    agent_type: type[DQNAgent] | PyTree[type[DQNAgent]] = eqx.field(
+        static=True, kw_only=True, default_factory=lambda: DQNAgent
+    )
 
     @property
     def learning_rate_schedule(self) -> Schedule:
@@ -96,10 +99,6 @@ class DQN(RLAlgorithm):
     @property
     def num_training_updates(self):
         return self.num_iterations * self.num_updates
-
-    @eqx.filter_jit
-    def init_agent(self, key: PRNGKeyArray, env: Environment) -> DQNAgent:
-        return DQNAgent(key=key, env=env, trainer=self)
 
     @eqx.filter_jit
     def train(
