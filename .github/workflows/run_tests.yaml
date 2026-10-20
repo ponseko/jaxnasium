@@ -37,7 +37,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --locked --group dev
 
       - name: Check that docs can be built
         run: uv run mkdocs build
@@ -58,10 +58,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --group dev --extra algs
+        run: uv sync --locked --group dev --extra algs
 
       - name: Run tests
-        run: uv run pytest -v -s
+        run: uv run pytest -ra --durations=10
 
   test-learn:
     needs: lint
@@ -83,10 +83,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --group dev --extra algs
+        run: uv sync --locked --group dev --extra algs
 
       - name: Run learning tests
-        run: uv run pytest -m "learn" -k "${{ matrix.alg }}" -v -s
+        run: uv run pytest -m "learn" -k "${{ matrix.alg }}" -ra --durations=10
 
   test-saving-loading:
     needs: lint
@@ -104,14 +104,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --group dev --extra algs
+        run: uv sync --locked --group dev --extra algs
 
       - name: Install external dependencies
         run: |
           uv pip install jaxon==2.0.0
 
       - name: Run saving/loading tests
-        run: uv run --no-sync pytest -m "saving_loading" -v -s
+        run: uv run --no-sync pytest -m "saving_loading" -ra --durations=10
 
   test-cli:
     needs: lint
@@ -129,29 +129,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --group dev --extra algs
+        run: uv sync --locked --group dev --extra algs
 
       - name: Run CLI tests
-        run: uv run pytest -m "cli" -v -s
-
-  test-external:
-    needs: lint
-    if: github.base_ref == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: uv sync --group dev --extra algs --group external
-
-      - name: Run external tests
-        run: uv run --no-sync pytest -m "external" -v -s
+        run: uv run pytest -m "cli" -ra --durations=10

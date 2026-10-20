@@ -11,7 +11,7 @@ import jaxnasium
 jaxnasium.enable_compilation_cache()
 
 jax.config.update("jax_platforms", "cpu")
-jax.config.update("jax_num_cpu_devices", 2)
+jax.config.update("jax_num_cpu_devices", 4)
 
 
 @pytest.fixture(autouse=True)
