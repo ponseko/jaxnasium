@@ -6,6 +6,7 @@ from typing import Any, Literal
 from ._environment import Environment
 from .wrappers import (
     BraxWrapper,
+    EnvPoolXLAWrapper,
     GymnaxWrapper,
     JaxMARLWrapper,
     JumanjiWrapper,
@@ -235,6 +236,23 @@ class Registry:
                 )
                 if wrap:
                     return _wrap_env(env, PlaygroundWrapper)
+                return env  # type: ignore
+            elif package == "envpool":
+                import envpool  # type: ignore
+
+                if "num_envs" not in env_kwargs:
+                    raise ValueError(
+                        "EnvPool environments are vectorized by EnvPool itself: pass "
+                        f"`num_envs` explicitly, e.g. jym.make('envpool:{env_name}', num_envs=8)."
+                    )
+                logger.info(
+                    "EnvPool environments are vectorized and can only be used for training. "
+                    "Use a separate, non-vectorized environment for evaluation "
+                    "(e.g. a Gymnasium env wrapped in `GymnasiumWrapper`)."
+                )
+                env = envpool.make_gymnasium(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, EnvPoolXLAWrapper)
                 return env  # type: ignore
             else:
                 raise ValueError(f"Unsupported/unknown external package: {package}")
