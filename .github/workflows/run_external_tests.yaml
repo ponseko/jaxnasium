@@ -27,7 +27,8 @@ jobs:
           - { suite: navix, install: --extra navix }
           - { suite: octax, install: --extra octax }
           - { suite: pgx, install: --extra pgx }
-          - { suite: playground, install: --extra playground }
+          # use higher jax version for playground (requiring python > 3.12), since compiling is much faster.
+          - { suite: playground, install: --extra playground, python: "3.13" } 
           - { suite: popjym, install: --group ext-popjym }
           - { suite: xminigrid, install: --extra xminigrid }
           - { suite: gymnasium, install: --extra gymnasium --extra envpool, tests: tests/test_gymnasium_cpu.py }
@@ -42,7 +43,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python || '3.11' }}
 
       - name: Install dependencies
         run: uv sync --locked --group dev --extra algs ${{ matrix.install }}
