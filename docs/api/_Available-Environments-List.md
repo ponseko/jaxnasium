@@ -350,3 +350,9 @@
 - `playground:LeapCubeReorient`
 - `playground:LeapCubeRotateZAxis`
 - `playground:AeroCubeRotateZAxis`
+- `kinetix:s`
+- `kinetix:random-s`
+- `kinetix:m`
+- `kinetix:random-m`
+- `kinetix:l`
+- `kinetix:random-l`

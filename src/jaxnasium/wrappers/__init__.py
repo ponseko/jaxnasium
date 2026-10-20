@@ -4,6 +4,7 @@ from ._gymnasium_cpu import GymnasiumWrapper as GymnasiumWrapper
 from ._gymnax import GymnaxWrapper as GymnaxWrapper
 from ._jaxmarl import JaxMARLWrapper as JaxMARLWrapper
 from ._jumanji import JumanjiWrapper as JumanjiWrapper
+from ._kinetix import KinetixWrapper as KinetixWrapper
 from ._navix import NavixWrapper as NavixWrapper
 from ._octax import OctaxWrapper as OctaxWrapper
 from ._pgx import PgxWrapper as PgxWrapper

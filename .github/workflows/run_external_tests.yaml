@@ -24,6 +24,8 @@ jobs:
           - { suite: gymnax, install: --extra gymnax }
           - { suite: jaxmarl, install: --extra jaxmarl }
           - { suite: jumanji, install: --extra jumanji }
+          # kinetix-env pins jax<=0.9.0, so it has its own resolution (see `conflicts` in pyproject.toml)
+          - { suite: kinetix, install: --extra kinetix }
           - { suite: navix, install: --extra navix }
           - { suite: octax, install: --extra octax }
           - { suite: pgx, install: --extra pgx }

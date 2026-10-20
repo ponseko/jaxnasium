@@ -31,6 +31,7 @@ gymnasium = ["gymnasium>=1.1.0"]
 gymnax = ["gymnax>=0.0.9"]
 jaxmarl = ["jaxmarl[mabrax]>=0.2.0"]
 jumanji = ["jumanji>=1.1.2"]
+kinetix = ["kinetix-env>=3.0.2"] # needs jax <=0.9.0
 navix = ["navix>=0.7.4"]
 octax = ["octax>=0.1.1", "opencv-python-headless>=4.10.0.84", "pillow>=10.0.0"]
 pgx = ["pgx>=2.6.0"]
@@ -67,6 +68,9 @@ external = [
     { include-group = "ext-extra-libs" },
     { include-group = "ext-popjym" },
 ]
+
+[tool.uv]
+conflicts = [[{ extra = "kinetix" }, { extra = "envs" }], [{ extra = "kinetix" }, { extra = "factoriax" }]]
 
 [tool.uv.sources]
 # Pinned to the commits last tested in CI.

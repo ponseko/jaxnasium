@@ -9,6 +9,7 @@ from .wrappers import (
     GymnaxWrapper,
     JaxMARLWrapper,
     JumanjiWrapper,
+    KinetixWrapper,
     LogWrapper,
     NavixWrapper,
     OctaxWrapper,
@@ -214,6 +215,13 @@ class Registry:
                 if wrap:
                     # Uses Gymnax style API. Scenario params differ from `default_params`
                     return _wrap_env(env, GymnaxWrapper, _params=env_params)
+                return env  # type: ignore
+            elif package == "kinetix":
+                from .wrappers._kinetix import make_kinetix_env_from_name
+
+                env, env_params = make_kinetix_env_from_name(env_name, **env_kwargs)
+                if wrap:  # Based on Gymnax, but with some changes
+                    return _wrap_env(env, KinetixWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "playground":
                 import mujoco_playground  # type: ignore
@@ -642,6 +650,7 @@ for _factoriax_id in (
 ):
     registry.register_alias(f"{_factoriax_id}", f"factoriax:{_factoriax_id}")
 
+
 # PopJym envs (POPGym in JAX). These are partially observable.
 for _popjym_id in (
     "NoisyStatelessMetaCartPole",
@@ -744,3 +753,12 @@ for _playground_env_id in (
     "AeroCubeRotateZAxis",  # no jax impl
 ):
     registry.register_alias(f"{_playground_env_id}", f"playground:{_playground_env_id}")
+
+
+# Kinetix envs (2D physics): hand-made level sets and random levels per size.
+# Single levels are available as `kinetix:{s,m,l}/<level>`.
+for _size in ("S", "M", "L"):
+    registry.register_alias(f"Kinetix-{_size}", f"kinetix:{_size.lower()}")
+    registry.register_alias(
+        f"Kinetix-Random-{_size}", f"kinetix:random-{_size.lower()}"
+    )
