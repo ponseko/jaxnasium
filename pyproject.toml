@@ -1,6 +1,6 @@
 [project]
 name = "jaxnasium"
-version = "0.1.0"
+version = "0.1.1"
 description = "A lightweight utility library for reinforcement learning projects in JAX and Equinox."
 readme = "README.md"
 authors = [
@@ -8,18 +8,37 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "create-rl-app",
-    "equinox>=0.12.1,!=0.13.3",
+    "create-rl-app>=0.1.0",
+    "equinox>=0.12.2,!=0.13.3",
     "jax>=0.5.2,!=0.7.*,!=0.9.*",
 ]
 
 [project.optional-dependencies]
 algs = [
+    "jax>=0.8.2",
     "distrax>=0.1.7",
-    "optax>=0.2.4",
+    "optax>=0.2.5",
 ]
 gpu = [
     "jax[cuda]"
+]
+
+# Environment suites:
+brax = ["brax>=0.14.2"]
+envpool = ["envpool>=1.2.5,!=1.2.6"]
+factoriax = ["factoriax>=0.1.0"]
+gymnasium = ["gymnasium>=1.1.0"]
+gymnax = ["gymnax>=0.0.9"]
+jaxmarl = ["jaxmarl[mabrax]>=0.2.0"]
+jumanji = ["jumanji>=1.1.2"]
+kinetix = ["kinetix-env>=3.0.2"] # needs jax <=0.9.0
+navix = ["navix>=0.7.4"]
+octax = ["octax>=0.1.1", "opencv-python-headless>=4.10.0.84", "pillow>=10.0.0"]
+pgx = ["pgx>=2.6.0"]
+playground = ["playground>=0.2.0"]
+xminigrid = ["xminigrid>=0.9.3"]
+envs = [
+    "jaxnasium[brax,envpool,factoriax,gymnasium,gymnax,jaxmarl,jumanji,navix,octax,pgx,playground,xminigrid]",
 ]
 
 [build-system]
@@ -40,29 +59,26 @@ dev = [
     "mkdocs-material>=9.6.13",
     "mkdocstrings[python]>=0.29.1",
 ]
+# Environment suites that are not on PyPI: included here for tests
+ext-crax = ["crax"]
+ext-extra-libs = ["chargax", "econojax", "rice_jax"]
+ext-popjym = ["popjym"]
 external = [
-    "brax==0.14.2",
-    "gym==0.26.2",
-    "gymnax==0.0.9",
-    "jumanji==1.1.1",
-    "navix==0.7.4",
-    "octax==0.1.1",
-    "pgx==2.6.0",
-    "xminigrid==0.9.3",
-    "jaxmarl==0.2.0",
-    "playground==0.2.0",
-    "envpool==1.2.5,!=1.2.6",
-    "popjym",
-    "rice_jax",
-    "chargax",
-    "econojax",
+    { include-group = "ext-crax" },
+    { include-group = "ext-extra-libs" },
+    { include-group = "ext-popjym" },
 ]
 
+[tool.uv]
+conflicts = [[{ extra = "kinetix" }, { extra = "envs" }], [{ extra = "kinetix" }, { extra = "factoriax" }]]
+
 [tool.uv.sources]
-popjym = { git = "https://github.com/FLAIROx/popjym" }
-rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", branch = "GAIA_jax", subdirectory="rice_jax" }
-chargax = { git = "https://github.com/ponseko/chargax" }
-econojax = { git = "https://github.com/ponseko/econojax" }
+# Pinned to the commits last tested in CI.
+popjym = { git = "https://github.com/FLAIROx/popjym", rev = "d7b23ba2ba663628c168897a914f1a0998643265" }
+crax = { git = "https://github.com/TTomilin/CRAX", rev = "7c12acd8d183810ca896038a3e85d3fe06bece79" }
+rice_jax = { git = "https://github.com/mila-iqia/climate-cooperation-competition", rev = "7c70e350292c0e361dfedc5fe0180239894db594", subdirectory = "rice_jax" }
+chargax = { git = "https://github.com/ponseko/chargax", rev = "f3c9f26005162259bc880c81c72f49983b306e8e" }
+econojax = { git = "https://github.com/ponseko/econojax", rev = "111600b7d063ba42c6543a89f3d3a1d699b6380e" }
 
 [tool.ruff.format]
 docstring-code-format = true

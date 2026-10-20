@@ -16,3 +16,5 @@ jaxon==2.0.0
 envpool==1.2.6
 popjym @ git+https://github.com/FLAIROx/popjym
 playground==0.2.0
+factoriax==0.1.0
+crax @ git+https://github.com/TTomilin/CRAX

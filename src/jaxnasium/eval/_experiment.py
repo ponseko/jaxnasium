@@ -68,6 +68,8 @@ class AlgorithmEvaluationConfig:
     algorithm: RLAlgorithm
     env: jym.Environment
     env_name: str
+    eval_env: jym.Environment
+    eval_env_name: str
     seed: PRNGKeyArray  # always a typed key array; see `_create_config`
     hyperparameters: dict[str, Any]
     labels: dict[str, Any] = field(default_factory=dict)
@@ -84,9 +86,12 @@ class AlgorithmEvaluation:
         Optional at init: it can also be supplied when calling (e.g. from a `Sweep`),
         but not both. A seed is required by the time the evaluation actually runs.
         `env`: Environment to train on, or a name to pass to `jym.make`.
+        `eval_env`: Environment to evaluate on, or a name to pass to `jym.make`.
+            Defaults to `None`, in which case evaluation happens on `env`.
         `algorithm`: `RLAlgorithm` instance or name (e.g. `"PPO"`).
         `batch_size`: the batch size to `jax.lax.map` in case multiple seeds are given.
         `num_evaluations`: Episodes to evaluate the trained agent over.
+        `deterministic_policy`: Whether to act greedily (instead of sampling) during evaluation.
         `return_train_metrics`: Also return the per-iteration training metrics.
         `save_path`: Where to write the results, or `None` (the default) to write
             nothing and leave saving to the caller.
@@ -119,9 +124,11 @@ class AlgorithmEvaluation:
 
     seed: PRNGKeyArray | None = None
     env: jym.Environment | str = "CartPole-v1"
+    eval_env: jym.Environment | str | None = None
     algorithm: RLAlgorithm | str = "PPO"
     batch_size: int | None = None
     num_evaluations: int = 50
+    deterministic_policy: bool = True
     return_train_metrics: bool = False
     save_path: str | Path | None = None
     save_as_zip: bool = False
@@ -146,11 +153,23 @@ class AlgorithmEvaluation:
         if not jnp.issubdtype(seed.dtype, jax.dtypes.prng_key):
             seed = jax.random.wrap_key_data(seed)
         env, env_name = _get_env(hyperparameters.pop("env", self.env))
+        eval_env = hyperparameters.pop("eval_env", self.eval_env)
+        if eval_env is None:
+            eval_env, eval_env_name = env, env_name
+        else:
+            eval_env, eval_env_name = _get_env(eval_env)
         algorithm = _get_algorithm(
             hyperparameters.pop("algorithm", self.algorithm), hyperparameters
         )
         return AlgorithmEvaluationConfig(
-            algorithm, env, env_name, seed, hyperparameters, dict(self._labels)
+            algorithm,
+            env,
+            env_name,
+            eval_env,
+            eval_env_name,
+            seed,
+            hyperparameters,
+            dict(self._labels),
         )
 
     def __call__(self, **kwargs: Any) -> Any:
@@ -166,11 +185,16 @@ class AlgorithmEvaluation:
             _log("Running AlgorithmEvaluation")
             _log(f"Algorithm: {type(config.algorithm).__name__}")
             _log(f"Environment: {config.env_name}")
+            if config.eval_env_name != config.env_name:
+                _log(f"Evaluation environment: {config.eval_env_name}")
             _log(f"Hyperparameters: {config.hyperparameters}")
             train_key, eval_key = jax.random.split(key)
             agent, train_metrics = config.algorithm.train(train_key, config.env)
             evaluation = agent.evaluate(
-                eval_key, config.env, num_eval_episodes=self.num_evaluations
+                eval_key,
+                config.eval_env,
+                num_eval_episodes=self.num_evaluations,
+                deterministic_policy=self.deterministic_policy,
             )
             if not self.return_train_metrics:
                 return evaluation
@@ -258,8 +282,10 @@ class AlgorithmEvaluation:
         return {
             "algorithm": type(config.algorithm).__name__,
             "env": config.env_name,
+            "eval_env": config.eval_env_name,
             "seed": _jsonify(jax.random.key_data(config.seed)),
             "num_evaluations": self.num_evaluations,
+            "deterministic_policy": self.deterministic_policy,
             "input_parameters": _jsonify(input_parameters),
             # Every field of the algorithm, not just the ones that were swept.
             "algorithm_parameters": _jsonify(
@@ -276,4 +302,12 @@ class AlgorithmEvaluation:
             if isinstance(self.algorithm, str)
             else type(self.algorithm).__name__
         )
-        return f"AlgorithmEvaluation({algorithm} on {_get_env(self.env)[1]})"
+        env_name = _get_env(self.env)[1]
+        if self.eval_env is not None:
+            eval_env_name = _get_env(self.eval_env)[1]
+            if eval_env_name != env_name:
+                return (
+                    f"AlgorithmEvaluation({algorithm} on {env_name}, "
+                    f"evaluated on {eval_env_name})"
+                )
+        return f"AlgorithmEvaluation({algorithm} on {env_name})"

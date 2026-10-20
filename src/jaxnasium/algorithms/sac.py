@@ -63,7 +63,7 @@ class Alpha(eqx.Module):
         return jnp.exp(self.ent_coef)
 
 
-class SAC(RLAlgorithm):
+class SAC(RLAlgorithm["SACAgent"]):
     """Soft Actor-Critic (SAC) algorithm implementation.
 
     This implementation uses soft target updates, a replay buffer, and a target entropy scale with optional annealing.
@@ -105,6 +105,9 @@ class SAC(RLAlgorithm):
     normalize_rewards: bool = eqx.field(static=True, default=False)
     actor_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
     critic_kwargs: dict[str, Any] = eqx.field(static=True, default_factory=dict)
+    agent_type: type[SACAgent] | PyTree[type[SACAgent]] = eqx.field(
+        static=True, kw_only=True, default_factory=lambda: SACAgent
+    )
 
     @property
     def target_entropy_scale_schedule(self):
@@ -168,10 +171,6 @@ class SAC(RLAlgorithm):
     @property
     def num_training_updates_alpha(self):
         return self.num_iterations * self.alpha_num_updates
-
-    @eqx.filter_jit
-    def init_agent(self, key: PRNGKeyArray, env: Environment) -> SACAgent:
-        return SACAgent(key=key, env=env, trainer=self)
 
     @eqx.filter_jit
     def train(

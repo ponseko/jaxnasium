@@ -24,7 +24,11 @@ env = jym.LogWrapper(env)
 
 ::: jaxnasium.NormalizeVecRewardWrapper
 
+::: jaxnasium.TransformObservationWrapper
+
 ::: jaxnasium.FlattenObservationWrapper
+
+::: jaxnasium.FrameStackWrapper
 
 ::: jaxnasium.TransformRewardWrapper
 
@@ -44,31 +48,39 @@ These are applied automatically by [`jaxnasium.make`](Available-Environments.md)
 an environment comes from an external suite. You only need them directly if you
 construct the third-party environment yourself.
 
-::: jaxnasium.BraxWrapper
+::: jaxnasium.wrappers.BraxWrapper
     options:
         members: false
 
-::: jaxnasium.GymnaxWrapper
+::: jaxnasium.wrappers.GymnaxWrapper
     options:
         members: false
 
-::: jaxnasium.JaxMARLWrapper
+::: jaxnasium.wrappers.JaxMARLWrapper
     options:
         members: false
 
-::: jaxnasium.JumanjiWrapper
+::: jaxnasium.wrappers.JumanjiWrapper
     options:
         members: false
 
-::: jaxnasium.NavixWrapper
+::: jaxnasium.wrappers.NavixWrapper
     options:
         members: false
 
-::: jaxnasium.PgxWrapper
+::: jaxnasium.wrappers.PgxWrapper
     options:
         members: false
 
-::: jaxnasium.xMinigridWrapper
+::: jaxnasium.wrappers.xMinigridWrapper
+    options:
+        members: false
+
+::: jaxnasium.wrappers.OctaxWrapper
+    options:
+        members: false
+
+::: jaxnasium.wrappers.PlaygroundWrapper
     options:
         members: false
 

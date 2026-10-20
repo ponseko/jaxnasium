@@ -66,6 +66,12 @@ class Wrapper(Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+    @property
+    def state_type(self):
+        raise TypeError(
+            "Cannot access `state_type` of a wrapper; access it on the wrapped environment instead."
+        )
+
 
 def is_wrapped(wrapped_env: Environment, wrapper_class: type | str) -> bool:
     """
@@ -73,8 +79,10 @@ def is_wrapped(wrapped_env: Environment, wrapper_class: type | str) -> bool:
     """
     current_env = wrapped_env
     while isinstance(current_env, Wrapper):
-        if isinstance(wrapper_class, str):  # Handle string class names
-            if current_env.__class__.__name__ == wrapper_class:
+        if isinstance(
+            wrapper_class, str
+        ):  # Handle string class names, incl. base classes
+            if any(c.__name__ == wrapper_class for c in type(current_env).__mro__):
                 return True
         else:  # Handle class type inputs
             if isinstance(current_env, wrapper_class):
@@ -213,7 +221,11 @@ class LogWrapper(Wrapper):
             env_state,
         )
 
-        initial_returns = jym.tree.zeros_like(reward_template)
+        # Keep returns as float (in case they are returned as bool/int); to not break the scan
+        initial_returns = jax.tree.map(
+            lambda r: jnp.zeros(r.shape, jnp.promote_types(r.dtype, jnp.float32)),
+            reward_template,
+        )
         initial_lengths = jym.tree.zeros_like(reward_template, dtype=jnp.int32)
         state = LogEnvState(
             env_state=env_state,
@@ -444,81 +456,102 @@ class NormalizeVecRewardWrapper(Wrapper):
         return TimeStep(obs, reward, terminated, truncated, info), state
 
 
-def _flatten(x: Array) -> Array:
-    """Flattens or leaves unchaged if a scalar"""
-    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
+def _is_space(x: Any) -> bool:
+    return isinstance(x, Space)
 
 
-class FlattenObservationWrapper(Wrapper):
-    """Flatten the observations of the environment.
+class TransformObservationWrapper(Wrapper):
+    """Transform observations with a function.
 
-    Flattens each observation in the environment to a single vector.
-    When the observation is a PyTree of arrays, it flattens each array
-    and returns the same PyTree structure with the flattened arrays.
+    `func` (and `observation_space_fn`) is applied to each observation leaf.
+    terminal observations (in info) are also transformed, and action masks are untouched.
 
     **Arguments:**
 
-    - `_env`: Environment to wrap.
+    - `env`: Environment to wrap.
+    - `func`: Function applied to every observation leaf, or a pytree of functions with the
+        same structure as the observation (one function per leaf).
+    - `observation_space_fn`: Function giving the new space of every observation leaf, or a
+        pytree of them (same structure). If None, the observation space is kept, so pass it
+        whenever `func` would change the observation space shape or dtype.
     """
+
+    func: Callable | PyTree[Callable]
+    observation_space_fn: Callable | PyTree[Callable] | None = None
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, env_state = self._env.reset(key)
-        obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
-        obs = jax.tree.map(_flatten, obs)
-        obs = eqx.combine(obs, masks)
-        return obs, env_state
+        return self.observation(obs), env_state
 
     def step(
         self, key: PRNGKeyArray, state: TEnvState, action: PyTree[int | float | Array]
     ) -> tuple[TimeStep, TEnvState]:
         timestep, env_state = self._env.step(key, state, action)
-        obs, masks = partition_obs_and_masks(
-            timestep.observation, self._env.multi_agent
-        )
-        obs = jax.tree.map(_flatten, obs)
-        obs = eqx.combine(obs, masks)
-        timestep = timestep._replace(observation=obs)
-        try:
-            # Same above: flatten the observation itself but leave any action mask alone.
-            info = timestep.info
-            terminal_obs, terminal_masks = partition_obs_and_masks(
-                info[ORIGINAL_OBSERVATION_KEY], self._env.multi_agent
-            )
-            terminal_obs = jax.tree.map(_flatten, terminal_obs)
-            info[ORIGINAL_OBSERVATION_KEY] = eqx.combine(terminal_obs, terminal_masks)
-            timestep = timestep._replace(info=info)
-        except Exception:
-            pass
-        return timestep, env_state
+        info = timestep.info
+        if ORIGINAL_OBSERVATION_KEY in info:
+            terminal = self.observation(info[ORIGINAL_OBSERVATION_KEY])
+            info = {**info, ORIGINAL_OBSERVATION_KEY: terminal}
+        obs = self.observation(timestep.observation)
+        return timestep._replace(observation=obs, info=info), env_state
+
+    def observation(self, observation: Observation) -> Observation:
+        return self._map_leaves(self.func, observation)
 
     @property
-    def observation_space(self) -> Space:
-        obs_space = self._env.observation_space
-        obs, masks = partition_obs_and_masks(obs_space, self._env.multi_agent)
+    def observation_space(self) -> Space | PyTree[Space]:
+        space = self._env.observation_space
+        if self.observation_space_fn is None:
+            return space
+        return self._map_leaves(self.observation_space_fn, space)
 
-        def get_flat_shape(space):
-            if not hasattr(space, "shape") or space.shape == ():
-                return space
-            _space = deepcopy(space)
-            flat_space_shape = int(np.prod(np.array(space.shape)))
-            try:
-                _space.shape = (flat_space_shape,)
-            except AttributeError:  # Gymnasium envs have no setter on shape
-                _space._shape = (flat_space_shape,)
+    def _map_leaves(self, fns: Callable | PyTree[Callable], tree: PyTree) -> PyTree:
+        """`fns` (one function, or one per leaf) on every observation leaf of `tree`, which
+        is an observation or an observation space."""
+        tree, masks = partition_obs_and_masks(tree, self._env.multi_agent)
+        if callable(fns):
+            tree = jax.tree.map(fns, tree, is_leaf=_is_space)
+        else:
+            tree = jax.tree.map(lambda fn, x: fn(x), fns, tree, is_leaf=_is_space)
+        return eqx.combine(tree, masks)
 
-            # Also flatten the .low and .high attributes if they exist
-            if hasattr(_space, "low") and hasattr(_space, "high"):
-                _space.low = np.reshape(_space.low, (-1,))
-                _space.high = np.reshape(_space.high, (-1,))
 
-            if hasattr(_space, "nvec"):
-                _space.nvec = np.reshape(_space.nvec, (-1,))
+def _flatten(x: Array) -> Array:
+    """Flattens or leaves unchaged if a scalar"""
+    return jnp.reshape(x, -1) if jnp.ndim(x) > 0 else x
 
-            return _space
 
-        flat_obs = jax.tree.map(get_flat_shape, obs)
-        obs_space = eqx.combine(flat_obs, masks)
-        return obs_space
+def _flatten_space(space: Space) -> Space:
+    if not hasattr(space, "shape") or space.shape == ():
+        return space
+    _space = deepcopy(space)
+    flat_space_shape = int(np.prod(np.array(space.shape)))
+    try:
+        _space.shape = (flat_space_shape,)
+    except AttributeError:  # Gymnasium envs have no setter on shape
+        _space._shape = (flat_space_shape,)  # type: ignore
+
+    # Also flatten the .low and .high attributes if they exist
+    if hasattr(_space, "low") and hasattr(_space, "high"):
+        _space.low = np.reshape(_space.low, (-1,))  # type: ignore
+        _space.high = np.reshape(_space.high, (-1,))  # type: ignore
+
+    if hasattr(_space, "nvec"):
+        _space.nvec = np.reshape(_space.nvec, (-1,))  # type: ignore
+
+    return _space
+
+
+class FlattenObservationWrapper(TransformObservationWrapper):
+    """Flatten the observations of the environment.
+    Flattens each observation leaf to a vector, keeping the PyTree structure of the observation.
+
+    **Arguments:**
+
+    - `env`: Environment to wrap.
+    """
+
+    def __init__(self, env: Environment):
+        super().__init__(env, _flatten, _flatten_space)
 
 
 class TransformRewardWrapper(Wrapper):
@@ -822,7 +855,7 @@ def _unstack_action(space_tree: PyTree[Space], action) -> PyTree[Array]:
     """Split a stacked action back into the the original environment's action pytree."""
     spaces, structure = jax.tree.flatten(space_tree)
     groups = _stackable_groups(space_tree)
-    # a single group was returned bare rather than in a tuple, so re-wrap it
+    # a single group was returned bare rather than in a list, so re-wrap it
     per_group = list(action) if len(groups) > 1 else [action]
 
     actions: list[Any] = [None] * len(spaces)
@@ -851,7 +884,7 @@ class StackActionSpaceWrapper(Wrapper):
     As an example:
     ```python
     (Discrete(20), Discrete(20), Discrete(20))  # -> MultiDiscrete([20, 20, 20])
-    (Discrete(10), Discrete(10), Discrete(10), Discrete(5)) -> (MultiDiscrete([10, 10, 10]), Discrete(5))
+    (Discrete(10), Discrete(10), Discrete(10), Discrete(5)) -> [MultiDiscrete([10, 10, 10]), Discrete(5)]
     ```
 
     This may be useful because Jaxnasium algorithms will vmap homogenous MultiDiscrete spaces, while
@@ -939,3 +972,147 @@ class StackActionSpaceWrapper(Wrapper):
     def original_action_space(self) -> Space | PyTree[Space]:
         """Return the original action space of the environment."""
         return self._env.action_space
+
+
+class FrameStackState(eqx.Module, Generic[TEnvState]):
+    env_state: TEnvState
+    frames: PyTree[Array]  # per observation leaf: (num_frames, *shape), oldest first
+
+    @classmethod
+    def full_like(
+        cls, env_state: TEnvState, obs: PyTree[Array], num_frames: int
+    ) -> "FrameStackState[TEnvState]":
+        """A stack with every frame set to `obs`, used at the start of an episode."""
+        frames = jax.tree.map(
+            lambda x: jnp.repeat(jnp.asarray(x)[None], num_frames, axis=0), obs
+        )
+        return cls(env_state, frames)
+
+    def push(
+        self, env_state: TEnvState, obs: PyTree[Array]
+    ) -> "FrameStackState[TEnvState]":
+        """The stack with its oldest frame dropped and `obs` appended."""
+        frames = jax.tree.map(
+            lambda stack, x: jnp.concatenate([stack[1:], jnp.asarray(x)[None]]),
+            self.frames,
+            obs,
+        )
+        return FrameStackState(env_state, frames)
+
+
+def _stack_space(space: Space, num_frames: int) -> Space:
+    """The obs_space of `num_frames` stacked observations from `space`."""
+    k = num_frames
+    if isinstance(space, Box):
+
+        def stack_bound(bound):
+            if np.ndim(bound) == 0:  # a scalar bound already covers every frame
+                return bound
+            return np.broadcast_to(bound, (k, *space.shape)).copy()
+
+        return Box(
+            low=stack_bound(space.low),
+            high=stack_bound(space.high),
+            shape=(k, *space.shape),
+            dtype=space.dtype,
+        )
+    if isinstance(space, Discrete):
+        return MultiDiscrete(nvec=np.full(k, space.n), dtype=space.dtype)
+    if isinstance(space, MultiDiscrete):
+        nvec = np.broadcast_to(np.asarray(space.nvec), (k, *space.shape)).copy()
+        stacked = MultiDiscrete(nvec=nvec, dtype=space.dtype)
+        stacked.shape = (k, *space.shape)  # MultiDiscrete infers a 1D shape
+        return stacked
+    raise NotImplementedError(
+        f"FrameStackWrapper cannot stack observation space {type(space).__name__}"
+    )
+
+
+class FrameStackWrapper(Wrapper):
+    """Stack the last `num_frames` observations along a new leading axis, like
+    `gymnasium.wrappers.FrameStackObservation`.
+
+    Each observation leaf of shape `shape` becomes `(num_frames, *shape)`, ordered from
+    oldest to newest, so `obs[-1]` is always the current frame. At the start of an
+    episode the stack is filled by repeating the first frame. Action masks are not
+    stacked, as they only apply to the current step.
+
+    The wrapped environment resets itself, so episode boundaries are detected from
+    `terminated`/`truncated` and the stack is refilled there. The terminal observation
+    in `info` is stacked as well, so bootstrapping on truncation sees the full stack.
+
+    Apply this before vectorization (`VecEnvWrapper`); the algorithms add that themselves.
+
+    **Arguments:**
+
+    - `_env`: Environment to wrap.
+    - `num_frames`: Number of frames to stack. Default is 4.
+    """
+
+    num_frames: int = eqx.field(static=True, default=4)
+
+    def __check_init__(self):
+        if self.num_frames < 1:
+            raise ValueError(f"num_frames must be at least 1, got {self.num_frames}")
+        vectorized_gymnasium = is_wrapped(self._env, "GymnasiumWrapper") and (
+            getattr(self._env, "_internal_num_envs", None) is not None
+        )
+        if is_wrapped(self._env, VecEnvWrapper) or vectorized_gymnasium:
+            raise ValueError(
+                "FrameStackWrapper must be applied before vectorization, as it stacks "
+                "along the leading axis of a single environment's observation."
+            )
+
+    def reset(self, key: PRNGKeyArray) -> tuple[Observation, FrameStackState]:
+        obs, env_state = self._env.reset(key)
+        obs, masks = partition_obs_and_masks(obs, self._env.multi_agent)
+        state = FrameStackState.full_like(env_state, obs, self.num_frames)
+        return eqx.combine(state.frames, masks), state
+
+    def step(
+        self,
+        key: PRNGKeyArray,
+        state: FrameStackState,
+        action: PyTree[int | float | Array],
+    ) -> tuple[TimeStep, FrameStackState]:
+        timestep, env_state = self._env.step(key, state.env_state, action)
+        multi_agent = self._env.multi_agent
+
+        # We need to "recatch" the done here so that we can (if done) return a stack
+        # of the first obs again, rather than pushing a new obs on the stack.
+        done = jax.tree.map(jnp.logical_or, timestep.terminated, timestep.truncated)
+        done = reduce(jnp.logical_and, jax.tree.leaves(done))
+        obs, masks = partition_obs_and_masks(timestep.observation, multi_agent)
+        frames = jax.lax.cond(
+            done,
+            lambda: FrameStackState.full_like(env_state, obs, self.num_frames).frames,
+            lambda: state.push(env_state, obs).frames,
+        )
+        new_state = FrameStackState(env_state, frames)
+
+        # The terminal observation completes the previous stack.
+        info = timestep.info
+        if ORIGINAL_OBSERVATION_KEY in info:
+            terminal, terminal_masks = partition_obs_and_masks(
+                info[ORIGINAL_OBSERVATION_KEY], multi_agent
+            )
+            terminal = state.push(env_state, terminal).frames
+            info = {
+                **info,
+                ORIGINAL_OBSERVATION_KEY: eqx.combine(terminal, terminal_masks),
+            }
+
+        timestep = timestep._replace(
+            observation=eqx.combine(new_state.frames, masks), info=info
+        )
+        return timestep, new_state
+
+    @property
+    def observation_space(self) -> Space | PyTree[Space]:
+        space, masks = partition_obs_and_masks(
+            self._env.observation_space, self._env.multi_agent
+        )
+        stacked = jax.tree.map(
+            lambda s: _stack_space(s, self.num_frames), space, is_leaf=_is_space
+        )
+        return eqx.combine(stacked, masks)

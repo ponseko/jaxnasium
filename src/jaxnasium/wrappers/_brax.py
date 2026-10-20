@@ -1,13 +1,21 @@
+from collections.abc import Mapping
 from typing import Any
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
+import numpy as np
 from jaxtyping import PRNGKeyArray
 
 from jaxnasium._environment import Observation, TimeStep
+from jaxnasium._spaces import Box
 
-from ._util import gymnasium_to_jaxnasium_space
 from ._wrappers import Wrapper
+
+
+def _state_obs(obs: Any) -> Any:
+    """Playground observations can be {"state": ..., "privileged_state": ...}; use the state."""
+    return obs["state"] if isinstance(obs, Mapping) else obs
 
 
 class BraxWrapperState(eqx.Module):
@@ -30,11 +38,18 @@ class BraxWrapper(Wrapper):
 
     _env: Any
     max_episode_steps: int = 1000  # Brax defaults to 1000
+    _observation_shape: tuple[int, ...] = eqx.field(static=True, init=False)
+
+    def __post_init__(self):
+        # Brax `observation_size` performs a full `reset` on every access (and Playground
+        # does an `eval_shape` of it), so we determine the observation shape once at construction.
+        obs = _state_obs(jax.eval_shape(self._env.reset, jax.random.PRNGKey(0)).obs)
+        self._observation_shape = tuple(obs.shape)
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, BraxWrapperState]:
         env_state = self._env.reset(key)
         env_state = BraxWrapperState(brax_env_state=env_state, timestep=0)
-        return env_state.brax_env_state.obs, env_state
+        return _state_obs(env_state.brax_env_state.obs), env_state
 
     def step(
         self, key: PRNGKeyArray, state: BraxWrapperState, action: float
@@ -49,7 +64,7 @@ class BraxWrapper(Wrapper):
         info = dict(brax_env_state.info)
 
         timestep_step = TimeStep(
-            observation=brax_env_state.obs,
+            observation=_state_obs(brax_env_state.obs),
             reward=brax_env_state.reward,
             terminated=terminated,
             truncated=truncated,
@@ -60,17 +75,15 @@ class BraxWrapper(Wrapper):
 
     @property
     def observation_space(self) -> Any:
-        from brax.envs.wrappers import gym as braxGym
-
-        # ensuring space properties are not tracers:
-        with jax.ensure_compile_time_eval():
-            obs_space = braxGym.GymWrapper(self._env).observation_space
-        return gymnasium_to_jaxnasium_space(obs_space)
+        return Box(
+            low=-np.inf, high=np.inf, shape=self._observation_shape, dtype=jnp.float32
+        )
 
     @property
     def action_space(self) -> Any:
-        from brax.envs.wrappers import gym as braxGym
-
-        with jax.ensure_compile_time_eval():
-            action_space = braxGym.GymWrapper(self._env).action_space
-        return gymnasium_to_jaxnasium_space(action_space)
+        sys = self._env.sys
+        limited = np.asarray(sys.actuator_ctrllimited, dtype=bool)
+        ctrl_range = np.asarray(sys.actuator_ctrlrange, dtype=np.float32)
+        low = np.where(limited, ctrl_range[:, 0], -np.inf)
+        high = np.where(limited, ctrl_range[:, 1], np.inf)
+        return Box(low=low, high=high, shape=low.shape, dtype=jnp.float32)

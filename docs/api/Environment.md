@@ -14,6 +14,14 @@
             - auto_reset
             - multi_agent
             - agent_structure
+            - state_type
+
+!!! note
+    When subclassing this class with a type parameter (`Environment[MyState]`), the state
+    type is available at runtime via `state_type`; this may be helpfull for environments that
+    should have an extensible state.
+    The state type is read from class definitions only: instantiating a subscripted class, e.g. `MyEnv[ExtendedState]()`, silently creates a `MyEnv` with its default state type.
+    Declare a subclass instead.
 
 ## Timestep
 

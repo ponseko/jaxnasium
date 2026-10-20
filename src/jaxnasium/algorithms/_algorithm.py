@@ -5,12 +5,13 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Any, Literal, Self
+from typing import Any, Generic, Literal, Self
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray, PyTree
+from typing_extensions import TypeVar
 
 import jaxnasium as jym
 from jaxnasium import (
@@ -26,7 +27,10 @@ from jaxnasium import (
 logger = logging.getLogger(__name__)
 
 
-class RLAlgorithm(eqx.Module):
+TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent")
+
+
+class RLAlgorithm(eqx.Module, Generic[TAgent]):
     """Base class for reinforcement learning algorithms in JAXnasium.
 
     This object can also be refered to as the "trainer" of an `RLAgent`. It contains the
@@ -44,6 +48,10 @@ class RLAlgorithm(eqx.Module):
     - Evaluation: Standardized evaluation interface for comparing algorithm performance
 
     Attributes:
+        agent_type: The `RLAgent` class that `init_agent` builds. In multi-agent settings,
+            this may be a pytree with a class per agent, e.g. `{"agent_0": SACAgent, "agent_1": MyAgent}`,
+            as long as the trainer supports all agent types. Optional for algorithms that
+            override `init_agent` instead.
         multi_agent: Whether this algorithm instance operates in multi-agent mode
         auto_upgrade_multi_agent: Whether to automatically upgrade single-agent methods to multi-agent
         log_function: Logging function to use ("simple", "tqdm", or custom callable)
@@ -63,21 +71,36 @@ class RLAlgorithm(eqx.Module):
     reduce_metrics_fn: Callable | Literal["mean"] | None = eqx.field(
         static=True, default="mean", kw_only=True
     )
+    agent_type: type[TAgent] | PyTree[type[TAgent]] | None = eqx.field(
+        static=True, default=None, kw_only=True
+    )
 
     @abstractmethod
     def train(
         self, key: PRNGKeyArray, env: Environment, agent: Any = None
-    ) -> tuple[RLAgent, PyTree[Float[Array, " iterations"]]]:
+    ) -> tuple[TAgent, PyTree[Float[Array, " iterations"]]]:
         """Runs the training loop, returning the trained agent and its training metrics.
 
         `agent=None` builds a fresh agent; passing an existing agent continues training it.
         """
         ...
 
-    @abstractmethod
-    def init_agent(self, key: PRNGKeyArray, env: Environment) -> RLAgent:
-        """Builds and returns an agent for `env`."""
-        ...
+    @eqx.filter_jit
+    def init_agent(self, key: PRNGKeyArray, env: Environment) -> TAgent:
+        """Builds and returns an agent of class `agent_type` for `env`."""
+        if self.agent_type is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} has no `agent_type`; set it, or override `init_agent`."
+            )
+        if isinstance(self.agent_type, type):
+            # In multi-agent settings, the agent class itself builds one agent per agent
+            return self.agent_type(key=key, env=env, trainer=self)
+        if not (env.multi_agent and self.auto_upgrade_multi_agent):
+            raise TypeError(
+                f"{type(self).__name__} did not receive a single agent type. "
+                "a pytree of agent types would require a multi-agent environment and auto_upgrade_multi_agent=True."
+            )
+        return _init_multi_agent(self.agent_type, key, env, self)
 
     def evaluate(
         self,
@@ -85,6 +108,7 @@ class RLAlgorithm(eqx.Module):
         agent: RLAgent,
         env: Environment,
         num_eval_episodes: int = 10,
+        deterministic_policy: bool = True,
     ) -> Float[Array, " num_eval_episodes"]:
         """`num_eval_episodes` over the environment with the provided agent.
 
@@ -107,7 +131,9 @@ class RLAlgorithm(eqx.Module):
                 episode_reward, rng, obs, env_state, done = carry
                 rng, action_key, step_key = jax.random.split(rng, 3)
 
-                action = agent.get_action(action_key, obs, deterministic=True)
+                action = agent.get_action(
+                    action_key, obs, deterministic=deterministic_policy
+                )
                 (obs, reward, terminated, truncated, _info), env_state = env.step(
                     step_key, env_state, action
                 )
@@ -263,7 +289,7 @@ class HackuinoxModule(type(eqx.Module)):
     # modules to return something other than an instance of the module class (e.g. a MultiAgentWrapper of multiple instances).
     # Normally, Equinox will bookkeep what classes should be created and are being created (presumably to keep track of what should be frozen).
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls, *args, **kwargs) -> Any:
         # Subclasses with a __new_wrapped__ classmethod can use it to intercept the regular __call__
         # and return something other than an instance of the class (e.g. a MultiAgentWrapper of multiple instances).
         # The __new_wrapped__ method should make sure infinite recursion is avoided
@@ -282,7 +308,7 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
     "The hyperparameters this agent was built with, and which its updates read."
 
     @abstractmethod
-    def __init__(self, key: PRNGKeyArray, env: Environment, trainer: RLAlgorithm):
+    def __init__(self, key: PRNGKeyArray, env: Environment, trainer: RLAlgorithm[Any]):
         pass
 
     def replace(self, **updates) -> Self:
@@ -306,9 +332,15 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
 
     @collective
     def evaluate(
-        self, key: PRNGKeyArray, env: Environment, num_eval_episodes: int = 10
+        self,
+        key: PRNGKeyArray,
+        env: Environment,
+        num_eval_episodes: int = 10,
+        deterministic_policy: bool = True,
     ) -> Float[Array, " num_eval_episodes"]:
-        return self.trainer.evaluate(key, self, env, num_eval_episodes)
+        return self.trainer.evaluate(
+            key, self, env, num_eval_episodes, deterministic_policy=deterministic_policy
+        )
 
     @collective
     def save(self, file_path: str):
@@ -333,59 +365,86 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
         return load_agent(file_path)
 
     @classmethod
-    def __new_wrapped__(cls, key: PRNGKeyArray, env: Environment, trainer: RLAlgorithm):
-        @dataclass
-        class SingleAgentEnvView:
-            env: Environment
-            action_space: Space
-            observation_space: Space
-
-            def __getattr__(self, name):
-                return getattr(self.env, name)
-
+    def __new_wrapped__(
+        cls, key: PRNGKeyArray, env: Environment, trainer: RLAlgorithm[Any]
+    ):
         auto_upgrade_multi_agent = getattr(trainer, "auto_upgrade_multi_agent", False)
         if getattr(env, "multi_agent", False) and auto_upgrade_multi_agent:
-            from jaxnasium.algorithms.core._multi_agent import (
-                MultiAgentWrapper,
-                map_multi_agent,
-                to_per_agent,
-            )
-
-            # `map_multi_agent` infers the agent structure from the first non-key argument
-            # As such, we create a per-agent environment (with each environment having the obs/action space of a single agent)
-            obs_spaces, agent_structure = eqx.tree_flatten_one_level(
-                env.observation_space
-            )
-            action_spaces = eqx.tree_flatten_one_level(env.action_space)[0]
-            envs = [
-                SingleAgentEnvView(env, a, o) for a, o in zip(action_spaces, obs_spaces)
-            ]
-            envs = jax.tree.unflatten(agent_structure, envs)
-
-            # Also create a per-agent trainer that may have per agent hyperparemeters.
-            # I.e. with `gamma={"agent_0": 0.9, ...}`, each agent's trainer will have its own `gamma` value.
-            trainer_args = {}
-            for k, value in trainer.__dict__.items():
-                if k == "auto_upgrade_multi_agent":
-                    continue  # prevent infinite recursion
-                trainer_args[k] = to_per_agent(value, agent_structure)
-            trainers = [
-                type(trainer)(
-                    auto_upgrade_multi_agent=False,  # prevent infinite recursion
-                    **{
-                        key: eqx.tree_flatten_one_level(trainer_args[key])[0][i]
-                        for key in trainer_args
-                    },
-                )
-                for i in range(agent_structure.num_leaves)
-            ]
-            trainers = jax.tree.unflatten(agent_structure, trainers)
-
-            return MultiAgentWrapper(
-                # don't vmap during construction
-                map_multi_agent(
-                    lambda k, e, t: cls(k, e, t), key, envs, trainers, vmap=False
-                ),
-                trainer=trainer,  # the wrapper keeps the full trainer
-            )
+            return _init_multi_agent(cls, key, env, trainer)
         return None  # continue with regular __call__
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Undecorated overrides of a `@collective` method stay collective
+        for name, attribute in vars(cls).items():
+            method = getattr(attribute, "__func__", attribute)  # unwrap classmethods
+            if not callable(method) or hasattr(method, "__per_agent__"):
+                continue
+            inherited = getattr(super(cls, cls), name, None)
+            if getattr(inherited, "__per_agent__", True) is False:
+                collective(method)
+
+
+@dataclass
+class _SingleAgentEnvView:
+    env: Environment
+    action_space: Space
+    observation_space: Space
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
+
+def _init_multi_agent(
+    agent_type: type[RLAgent] | PyTree[type[RLAgent]],
+    key: PRNGKeyArray,
+    env: Environment,
+    trainer: RLAlgorithm[Any],
+) -> Any:  # a `MultiAgentWrapper`, which stands in for the agent
+    """Builds a `MultiAgentWrapper` with an agent of `agent_type` (or its per-agent class) per agent."""
+    from jaxnasium.algorithms.core._multi_agent import (
+        MultiAgentWrapper,
+        map_multi_agent,
+        to_per_agent,
+    )
+
+    # `map_multi_agent` infers the agent structure from the first non-key argument
+    # As such, we create a per-agent environment (with each environment having the obs/action space of a single agent)
+    obs_spaces, agent_structure = eqx.tree_flatten_one_level(env.observation_space)
+    action_spaces = eqx.tree_flatten_one_level(env.action_space)[0]
+    envs = [_SingleAgentEnvView(env, a, o) for a, o in zip(action_spaces, obs_spaces)]
+    envs = jax.tree.unflatten(agent_structure, envs)
+
+    # Also create a per-agent trainer that may have per agent hyperparemeters.
+    # I.e. with `gamma={"agent_0": 0.9, ...}`, each agent's trainer will have its own `gamma` value.
+    trainer_args = {}
+    for k, value in trainer.__dict__.items():
+        if k == "auto_upgrade_multi_agent":
+            continue  # prevent infinite recursion
+        trainer_args[k] = to_per_agent(value, agent_structure)
+    trainers = [
+        type(trainer)(
+            auto_upgrade_multi_agent=False,  # prevent infinite recursion
+            **{
+                key: eqx.tree_flatten_one_level(trainer_args[key])[0][i]
+                for key in trainer_args
+            },
+        )
+        for i in range(agent_structure.num_leaves)
+    ]
+    trainers = jax.tree.unflatten(agent_structure, trainers)
+    agent_types = to_per_agent(agent_type, agent_structure)
+
+    return MultiAgentWrapper(
+        # don't vmap during construction
+        map_multi_agent(
+            lambda k, e, t, a: a(k, e, t),
+            key,
+            envs,
+            trainers,
+            agent_types,
+            agent_structure=agent_structure,
+            vmap=False,
+        ),
+        trainer=trainer,  # the wrapper keeps the full trainer
+    )

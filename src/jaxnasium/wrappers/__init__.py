@@ -1,8 +1,10 @@
 from ._brax import BraxWrapper as BraxWrapper
+from ._envpool_xla import EnvPoolXLAWrapper as EnvPoolXLAWrapper
 from ._gymnasium_cpu import GymnasiumWrapper as GymnasiumWrapper
 from ._gymnax import GymnaxWrapper as GymnaxWrapper
 from ._jaxmarl import JaxMARLWrapper as JaxMARLWrapper
 from ._jumanji import JumanjiWrapper as JumanjiWrapper
+from ._kinetix import KinetixWrapper as KinetixWrapper
 from ._navix import NavixWrapper as NavixWrapper
 from ._octax import OctaxWrapper as OctaxWrapper
 from ._pgx import PgxWrapper as PgxWrapper
@@ -15,12 +17,14 @@ from ._wrappers import (
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
+    FrameStackWrapper as FrameStackWrapper,
     LogWrapper as LogWrapper,
     MetaParamsWrapper as MetaParamsWrapper,
     NormalizeVecObsWrapper as NormalizeVecObsWrapper,
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
+    TransformObservationWrapper as TransformObservationWrapper,
     TransformRewardWrapper as TransformRewardWrapper,
     VecEnvWrapper as VecEnvWrapper,
     Wrapper as Wrapper,

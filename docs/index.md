@@ -5,7 +5,7 @@
 Jaxnasium is not an environment suite, and not a framework that locks you in. Rather, it is your one-stop shop for your JAX RL code: a single environment API that existing suites are wrapped into, a set of general algorithms you can either import or copy into your project, and the
 tooling to train, evaluate and sweep them.
 
-1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Pgx, JaxMARL, xMinigrid, Navix or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
+1. 🕹️ **One environment API.** Import environments from Gymnax, Jumanji, Brax, Crax, Pgx, JaxMARL, xMinigrid, Navix, Playground, PopJym, or Craftax through `jym.make(...)`, automatically wrapped to a common standard.
 2. 🤖 **Readable cross-suite algorithms.** Various algorithms that can operate on any of those environments in near-single-file philosophy, built in [Equinox](https://github.com/patrick-kidger/equinox) with a familiar [Stable-Baselines](https://github.com/DLR-RM/stable-baselines3)-like API and end-to-end JIT training in the spirit of [PureJaxRL](https://github.com/luchris429/purejaxrl).
 3. 👥 **Multi-agent for free.** Single-agent algorithm code transparently upgrades to multi-agent environments through PyTrees and function transformations.
 4. 📊 **Sweeps and evaluation.** Grid, random, Sobol and one-at-a-time searches over many seeds, locally or across a Slurm job array.
@@ -17,7 +17,7 @@ tooling to train, evaluate and sweep them.
 pip install "jaxnasium[algs]"   # [algs] pulls in optax + distrax, needed for jaxnasium.algorithms
 ```
 
-Third-party environment suites are *not* dependencies; install the ones you want to use
+Third-party environment suites are _not_ dependencies; install the ones you want to use
 (e.g. `pip install gymnax`). For a brand-new project, let the [CLI](cli.md) set everything up for you:
 
 ```bash
@@ -69,13 +69,13 @@ By default `make` applies the adapter wrapper for the environment's library and 
 `VecEnvWrapper` themselves when training.
 
 !!! info
-    For convenience, Jaxnasium bundles the 5 [classic-control environments](https://gymnasium.farama.org/environments/classic_control/), which need no external dependencies.
+For convenience, Jaxnasium bundles the 5 [classic-control environments](https://gymnasium.farama.org/environments/classic_control/), which need no external dependencies.
 
 See [Available Environments](api/Available-Environments.md) for a complete list of available environments.
 
 ### Environment API
 
-The Jaxnasium API stays close to the *somewhat* established [Gymnax](https://github.com/RobertTLange/gymnax) API for the `reset()` and `step()` functions, but allows for truncated episodes in a manner closer to [Gymnasium](https://gymnasium.farama.org/).
+The Jaxnasium API stays close to the _somewhat_ established [Gymnax](https://github.com/RobertTLange/gymnax) API for the `reset()` and `step()` functions, but allows for truncated episodes in a manner closer to [Gymnasium](https://gymnasium.farama.org/).
 
 ```python
 obs, env_state = env.reset(key)  # <-- Mirroring Gymnax
@@ -147,11 +147,11 @@ See [Sweeps](eval/Sweeps.md) and [Searches](eval/Searches.md).
 
 ## Where to go next
 
-| | |
-| --- | --- |
-| [Environment](api/Environment.md) · [Spaces](api/Spaces.md) · [Wrappers](api/Wrappers.md) | Build or adapt an environment |
-| [Algorithms](algorithms/Algorithms.md) · [Multi-Agent](algorithms/Multi-Agent.md) | Train agents |
-| [Networks](algorithms/networks/Networks.md) · [Architectures](algorithms/networks/Architectures.md) | Swap in your own model |
-| [Sweeps](eval/Sweeps.md) · [Searches](eval/Searches.md) | Run experiments at scale |
-| [Compilation](api/Compilation.md) | Ahead-of-time compilation and caching |
-| [Checkpointing](algorithms/core/Checkpointing.md) · [Tree utilities](tree/Tree.md) · [CLI](cli.md) | Everything else |
+|                                                                                                     |                                       |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [Environment](api/Environment.md) · [Spaces](api/Spaces.md) · [Wrappers](api/Wrappers.md)           | Build or adapt an environment         |
+| [Algorithms](algorithms/Algorithms.md) · [Multi-Agent](algorithms/Multi-Agent.md)                   | Train agents                          |
+| [Networks](algorithms/networks/Networks.md) · [Architectures](algorithms/networks/Architectures.md) | Swap in your own model                |
+| [Sweeps](eval/Sweeps.md) · [Searches](eval/Searches.md)                                             | Run experiments at scale              |
+| [Compilation](api/Compilation.md)                                                                   | Ahead-of-time compilation and caching |
+| [Checkpointing](algorithms/core/Checkpointing.md) · [Tree utilities](tree/Tree.md) · [CLI](cli.md)  | Everything else                       |

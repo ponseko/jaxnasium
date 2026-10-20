@@ -1,3 +1,5 @@
+import functools
+import typing
 from abc import abstractmethod
 from typing import Any, Generic, TypeAlias
 
@@ -14,6 +16,24 @@ ORIGINAL_OBSERVATION_KEY = "_TERMINAL_OBSERVATION"
 
 Observation: TypeAlias = PyTree[Any]
 TEnvState = TypeVar("TEnvState", default=Any)
+
+
+@functools.cache
+def _bound_to(cls: type, param: typing.TypeVar) -> Any:
+    """What `param` is bound to in `cls`: a type, a TypeVar of `cls` itself if still unbound,
+    or `None` if `cls` does not derive from the class declaring `param`.
+
+    In short: the type that cls, directly or through its parent classes, passes for the type parameter param.
+    """
+    for base in cls.__dict__.get("__orig_bases__", cls.__bases__):
+        origin = typing.get_origin(base) or base
+        if origin is Generic:
+            if param in typing.get_args(base):
+                return param  # `cls` declares `param`
+        elif isinstance(origin, type) and (t := _bound_to(origin, param)) is not None:
+            params = getattr(origin, "__parameters__", ())
+            return dict(zip(params, typing.get_args(base))).get(t, t)
+    return None
 
 
 class EnvState(eqx.Module):
@@ -38,6 +58,32 @@ class Environment(eqx.Module, Generic[TEnvState]):
     `step_env` and `reset_env` methods.
 
     """
+
+    @property
+    def state_type(self) -> type[TEnvState]:
+        """Optional property for accessing the class of the environment state, if set through the type parameter of this environment.
+        That is, the environment (or one of its parent classes) declares its state type via `class Env(Environment[MyState])`,
+        or through the default of a TypeVar. If this is not the case, this raises a `TypeError`.
+
+        Generally not required, but possibly usefull when an environment needs and extensible state.
+        """
+        # grab the class of the TEnvState of this environment:
+        state_type = _bound_to(type(self), TEnvState)
+
+        if isinstance(state_type, typing.TypeVar):  # Unbound: use default or its bound
+            # `has_default` is absent for `typing.TypeVar` before 3.13
+            has_default = getattr(state_type, "has_default", None)
+            if has_default is not None and has_default():
+                state_type = state_type.__default__
+            else:
+                state_type = state_type.__bound__
+        if state_type is Any or not isinstance(state_type, type):
+            raise TypeError(
+                f"Attempted to acces `state_type`, but {type(self).__name__} does not bind a"
+                " concrete state type (resolved to {state_type!r})."
+                " (Declare it via `class MyEnv(jym.Environment[MyState])`."
+            )
+        return state_type
 
     def step(
         self,

@@ -569,7 +569,7 @@ class PyTreeActionNetwork(_PyTreeOutputNetwork):
             and all(_is_distribution(o) for o in dist_list)
         ):
             outputs = jax.tree.map(make_independent, outputs, is_leaf=_is_distribution)
-            if len(dist_list) > 1:
+            if not _is_distribution(outputs) > 1:
                 return distrax.Joint(outputs)
 
         return outputs

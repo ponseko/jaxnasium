@@ -6,9 +6,11 @@ from typing import Any, Literal
 from ._environment import Environment
 from .wrappers import (
     BraxWrapper,
+    EnvPoolXLAWrapper,
     GymnaxWrapper,
     JaxMARLWrapper,
     JumanjiWrapper,
+    KinetixWrapper,
     LogWrapper,
     NavixWrapper,
     OctaxWrapper,
@@ -121,17 +123,17 @@ class Registry:
             if package == "gymnax":
                 import gymnax  # type: ignore
 
-                env, _ = gymnax.make(env_name, **env_kwargs)
+                env, env_params = gymnax.make(env_name, **env_kwargs)
                 if wrap:
-                    return _wrap_env(env, GymnaxWrapper)
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "popjym":
                 # Popgym uses the gymnax api (< version 1)
                 import popjym  # type: ignore
 
-                env, _ = popjym.make(env_name, **env_kwargs)
+                env, env_params = popjym.make(env_name, **env_kwargs)
                 if wrap:
-                    return _wrap_env(env, GymnaxWrapper)
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
                 return env  # type: ignore
             elif package == "jumanji":
                 import jumanji  # type: ignore
@@ -146,6 +148,19 @@ class Registry:
                 env = brax.envs.get_environment(env_name, **env_kwargs)
                 if wrap:
                     return _wrap_env(env, BraxWrapper)
+                return env  # type: ignore
+            elif package == "crax":
+                import crax.envs  # type: ignore
+
+                # Set default to level 1 (easiest)
+                if crax.envs.supports_difficulty(env_name):
+                    env_kwargs.setdefault("level", 1)
+                    logger.info(
+                        f"Defaulting to level 1 for crax env {env_name}. Set `level=` to override."
+                    )
+                env = crax.envs.get_environment(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, BraxWrapper)  # Uses the Brax API
                 return env  # type: ignore
             elif package == "pgx":
                 import pgx  # type: ignore
@@ -191,12 +206,53 @@ class Registry:
                 if wrap:
                     return _wrap_env(env, GymnaxWrapper)  # Uses Gymnax style API
                 return env  # type: ignore
+            elif package == "factoriax":
+                from factoriax.make import env_from_name  # type: ignore
+
+                # auto_reset=False: the GymnaxWrapper does its own auto-reset.
+                env, env_params = env_from_name(
+                    env_name, auto_reset=False, **env_kwargs
+                )
+                if wrap:
+                    # Uses Gymnax style API. Scenario params differ from `default_params`
+                    return _wrap_env(env, GymnaxWrapper, _params=env_params)
+                return env  # type: ignore
+            elif package == "kinetix":
+                from .wrappers._kinetix import make_kinetix_env_from_name
+
+                env, env_params = make_kinetix_env_from_name(env_name, **env_kwargs)
+                if wrap:  # Based on Gymnax, but with some changes
+                    return _wrap_env(env, KinetixWrapper, _params=env_params)
+                return env  # type: ignore
             elif package == "playground":
                 import mujoco_playground  # type: ignore
 
-                env = mujoco_playground.registry.load(env_name, **env_kwargs)
+                # warp backend might be preferred; but won't work properly in all jax versions
+                overrides = env_kwargs.pop("config_overrides", None) or {}
+                if "impl" in mujoco_playground.registry.get_default_config(env_name):
+                    overrides.setdefault("impl", "jax")
+                env = mujoco_playground.registry.load(
+                    env_name, config_overrides=overrides, **env_kwargs
+                )
                 if wrap:
                     return _wrap_env(env, PlaygroundWrapper)
+                return env  # type: ignore
+            elif package == "envpool":
+                import envpool  # type: ignore
+
+                if "num_envs" not in env_kwargs:
+                    raise ValueError(
+                        "EnvPool environments are vectorized by EnvPool itself: pass "
+                        f"`num_envs` explicitly, e.g. jym.make('envpool:{env_name}', num_envs=8)."
+                    )
+                logger.info(
+                    "EnvPool environments are vectorized and can only be used for training. "
+                    "Use a separate, non-vectorized environment for evaluation "
+                    "(e.g. a Gymnasium env wrapped in `GymnasiumWrapper`)."
+                )
+                env = envpool.make_gymnasium(env_name, **env_kwargs)
+                if wrap:
+                    return _wrap_env(env, EnvPoolXLAWrapper)
                 return env  # type: ignore
             else:
                 raise ValueError(f"Unsupported/unknown external package: {package}")
@@ -349,6 +405,27 @@ registry.register_alias("inverted_double_pendulum", "brax:inverted_double_pendul
 registry.register_alias("pusher", "brax:pusher")
 registry.register_alias("reacher", "brax:reacher")
 registry.register_alias("walker2d", "brax:walker2d")
+
+# Crax envs (safety-constrained Brax fork)
+for _crax_id in (
+    "safe_button_point",
+    "safe_circle_point",
+    "safe_goal_point",
+    "safe_height_humanoid",
+    "safe_lift_ant",
+    "safe_lift_humanoid",
+    "safe_lift_spider",
+    "safe_pathway_walker2d",
+    "safe_push_point",
+    "safe_reacher",
+    "safe_velocity_ant",
+    "safe_velocity_halfcheetah",
+    "safe_velocity_humanoid",
+    "safe_velocity_hopper",
+    "safe_velocity_swimmer",
+    "safe_velocity_walker2d",
+):
+    registry.register_alias(f"{_crax_id}", f"crax:{_crax_id}")
 
 # Pgx envs
 registry.register_alias("2048", "pgx:2048")
@@ -583,6 +660,15 @@ registry.register_alias("Craftax-Pixels-v1", "craftax:Craftax-Pixels-v1")
 #     "Craftax-Pixels-AutoReset-v1", "craftax:Craftax-Pixels-AutoReset-v1"
 # )
 
+# Factoriax envs (Factorio-like crafting/logistics grid world)
+for _factoriax_id in (
+    "MinerBootstrap-v1",
+    "EasyRocket-v1",
+    "Rocket-v1",
+):
+    registry.register_alias(f"{_factoriax_id}", f"factoriax:{_factoriax_id}")
+
+
 # PopJym envs (POPGym in JAX). These are partially observable.
 for _popjym_id in (
     "NoisyStatelessMetaCartPole",
@@ -685,3 +771,12 @@ for _playground_env_id in (
     "AeroCubeRotateZAxis",  # no jax impl
 ):
     registry.register_alias(f"{_playground_env_id}", f"playground:{_playground_env_id}")
+
+
+# Kinetix envs (2D physics): hand-made level sets and random levels per size.
+# Single levels are available as `kinetix:{s,m,l}/<level>`.
+for _size in ("S", "M", "L"):
+    registry.register_alias(f"Kinetix-{_size}", f"kinetix:{_size.lower()}")
+    registry.register_alias(
+        f"Kinetix-Random-{_size}", f"kinetix:random-{_size.lower()}"
+    )

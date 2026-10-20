@@ -1,0 +1,65 @@
+name: Run External Tests
+
+# On PRs to main, or manually via "Run workflow" in the Actions tab.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-external:
+    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
+    name: test-external (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    env:
+      # just some optimization :
+      XLA_FLAGS: --xla_backend_optimization_level=0
+    strategy:
+      fail-fast: false
+      matrix:
+        # Registry suites run their part of tests/test_registry_envs_external.py (-k suite/)
+        include:
+          - { suite: brax, install: --extra brax }
+          - { suite: crax, install: --group ext-crax }
+          - { suite: factoriax, install: --extra factoriax }
+          - { suite: gymnax, install: --extra gymnax }
+          - { suite: jaxmarl, install: --extra jaxmarl }
+          - { suite: jumanji, install: --extra jumanji }
+          # kinetix-env pins jax<=0.9.0, so it has its own resolution (see `conflicts` in pyproject.toml)
+          - { suite: kinetix, install: --extra kinetix }
+          - { suite: navix, install: --extra navix }
+          - { suite: octax, install: --extra octax }
+          - { suite: pgx, install: --extra pgx }
+          # use higher jax version for playground (requiring python > 3.12), since compiling is much faster.
+          - { suite: playground, install: --extra playground, python: "3.13" } 
+          - { suite: popjym, install: --group ext-popjym }
+          - { suite: xminigrid, install: --extra xminigrid }
+          - { suite: gymnasium, install: --extra gymnasium --extra envpool, tests: tests/test_gymnasium_cpu.py }
+          - { suite: extra-libs, install: --group ext-extra-libs, tests: tests/test_extra_libs.py }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python || '3.11' }}
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev --extra algs ${{ matrix.install }}
+
+      - name: Restore JAX compilation cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jaxnasium/jit-cache
+          key: jax-cache-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}-${{ github.run_id }}
+          restore-keys: jax-cache-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}-
+
+      - name: Run external tests
+        env:
+          JAXNASIUM_REQUIRE_IMPORTS: ${{ matrix.suite }}
+        run: >-
+          uv run --no-sync pytest -m "external" -v -ra --durations=10
+          ${{ matrix.tests || format('tests/test_registry_envs_external.py -k {0}/', matrix.suite) }}
