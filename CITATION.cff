@@ -1,9 +1,13 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 authors:
-- family-names: "Ponse"
-  given-names: "Koen"
-title: "Jaxnasium: A Lightweight Utility Library for JAX-based RL Projects"
-version: 0.0.27
-year: 2025
-url: "http://github.com/ponseko/jaxnasium"
+  - family-names: "Ponse"
+    given-names: "Koen"
+  - family-names: "Plaat"
+    given-names: "Aske"
+  - family-names: "Moerland"
+    given-names: "Thomas"
+title: "Jaxnasium: Embracing PyTrees For Any-Agent, Cross-Suite Reinforcement Learning"
+version: "0.1.1"
+date-released: "2026"
+url: "https://github.com/ponseko/jaxnasium"

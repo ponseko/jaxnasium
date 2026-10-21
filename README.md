@@ -169,3 +169,15 @@ See [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) and [Searches](ht
 | [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) · [Searches](https://ponseko.github.io/jaxnasium/eval/Searches/)                                                                              | Run experiments at scale              |
 | [Compilation](https://ponseko.github.io/jaxnasium/api/Compilation/)                                                                                                                                      | Ahead-of-time compilation and caching |
 | [Checkpointing](https://ponseko.github.io/jaxnasium/algorithms/core/Checkpointing/) · [Tree utilities](https://ponseko.github.io/jaxnasium/tree/Tree/) · [CLI](https://ponseko.github.io/jaxnasium/cli/) | Everything else                       |
+
+## Citation
+
+```bibtex
+@software{ponse2026jaxnasium,
+  author  = {Ponse, Koen and Plaat, Aske and Moerland, Thomas},
+  title   = {Jaxnasium: Embracing PyTrees For Any-Agent, Cross-Suite Reinforcement Learning},
+  year    = {2026},
+  version = {0.1.0},
+  url     = {https://github.com/ponseko/jaxnasium},
+}
+```
