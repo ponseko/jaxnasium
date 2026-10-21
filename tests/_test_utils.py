@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from _consts import AGENT_MIN_CONFIG, KNOWN_FAILURES, SKIP_AGENT_ENVS
+from _consts import AGENT_MIN_CONFIG, ENV_WRAPPERS, KNOWN_FAILURES, SKIP_AGENT_ENVS
 
 import jaxnasium as jym
 from jaxnasium.algorithms import DQN, PPO, PQN, SAC, RLAgent, RLAlgorithm
@@ -295,6 +295,8 @@ def check_env(
 
     if flatten_obs:
         env = jym.wrappers.FlattenObservationWrapper(env)
+    for wrapper in ENV_WRAPPERS.get(env_id, []):
+        env = wrapper(env)
 
     if run_env:
         _check_env_rollout(env, env_id)
