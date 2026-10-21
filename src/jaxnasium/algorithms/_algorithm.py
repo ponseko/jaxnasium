@@ -109,14 +109,15 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         env: Environment,
         num_eval_episodes: int = 10,
         deterministic_policy: bool = True,
+        batch_size: int | None = None,
     ) -> Float[Array, " num_eval_episodes"]:
         """`num_eval_episodes` over the environment with the provided agent.
 
+        Episodes run `batch_size` at a time (via `jax.lax.map`), defaulting to the algorithm's `num_envs`.
+
         Can also be called through an agent via `agent.evaluate(key, env, ...)`.
         """
-        if is_wrapped(env, VecEnvWrapper):
-            # Cannot vectorize because terminations may occur at different times
-            # use jax.vmap(agent.evaluate) if you can ensure episodes are of equal length
+        if is_wrapped(env, VecEnvWrapper):  # We batch the while loop below instead
             env = unwrap_to(env, VecEnvWrapper)
         elif is_wrapped(env, "GymnasiumWrapper") and (
             getattr(env, "_internal_num_envs", None) is not None
@@ -126,7 +127,12 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
                 "environment without the `VectorEnv` wrapper for evaluation."
             )
 
-        def eval_episode(key, _) -> tuple[PRNGKeyArray, PyTree[float]]:
+        if batch_size is None:  # use num_envs
+            batch_size = getattr(self, "num_envs", None)
+        if is_wrapped(env, "GymnasiumWrapper"):
+            batch_size = None  # a single CPU environment behind a callback
+
+        def eval_episode(key: PRNGKeyArray) -> PyTree[float]:
             def step_env(carry):
                 episode_reward, rng, obs, env_state, done = carry
                 rng, action_key, step_key = jax.random.split(rng, 3)
@@ -153,19 +159,15 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
             )
             episode_reward = jym.tree.zeros_like(reward_structure, dtype=float)
 
-            episode_reward, key, obs, env_state, done = jax.lax.while_loop(
+            episode_reward, *_ = jax.lax.while_loop(
                 lambda carry: jnp.logical_not(carry[-1]),
                 step_env,
                 (episode_reward, key, obs, env_state, done),
             )
+            return episode_reward
 
-            return key, episode_reward
-
-        _, episode_rewards = jax.lax.scan(
-            eval_episode, key, jnp.arange(num_eval_episodes)
-        )
-
-        return episode_rewards
+        keys = jax.random.split(key, num_eval_episodes)
+        return jax.lax.map(eval_episode, keys, batch_size=batch_size)
 
     def __check_env__(self, env: Environment, vectorized: bool = False) -> Environment:
         """
@@ -337,9 +339,15 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
         env: Environment,
         num_eval_episodes: int = 10,
         deterministic_policy: bool = True,
+        batch_size: int | None = None,
     ) -> Float[Array, " num_eval_episodes"]:
         return self.trainer.evaluate(
-            key, self, env, num_eval_episodes, deterministic_policy=deterministic_policy
+            key,
+            self,
+            env,
+            num_eval_episodes,
+            deterministic_policy=deterministic_policy,
+            batch_size=batch_size,
         )
 
     @collective
