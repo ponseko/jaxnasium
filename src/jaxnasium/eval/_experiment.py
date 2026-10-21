@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -30,6 +31,27 @@ def _log(*text: str) -> None:
         sys.stderr.flush()
     except Exception:
         pass
+
+
+def _run_info() -> dict[str, Any]:
+    """Where a run ran: the device, library versions, and the git commit of the working directory."""
+    try:
+        git = subprocess.run(
+            ["git", "describe", "--always", "--dirty"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        commit = git.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        commit = None
+    return {
+        "device": jax.devices()[0].device_kind,
+        "jax_version": jax.__version__,
+        "jaxnasium_version": jym.__version__,
+        "git_commit": commit,
+    }
 
 
 def _get_algorithm(algorithm: RLAlgorithm | str, hyperparameters: dict) -> RLAlgorithm:
@@ -99,7 +121,10 @@ class AlgorithmEvaluation:
             - `results.npy`: the evaluation results, shape (num_seeds, num_evaluations)
             - `train_curve.npy`: the training metrics, shape (num_seeds, num_iterations, ...)
             - `input_parameters.json`: the input parameters to the evaluation
-            - `full_parameters.json`: the full parameters used for the evaluation.
+            - `full_parameters.json`: the full parameters used for the evaluation, plus
+              `_run_info()` (device, library versions, git commit) and wall-clock seconds:
+              `compile_duration` (tracing and compiling), `run_duration` (training and
+              evaluating all seeds) and `total_duration` (both, plus setup).
         `save_as_zip`: If True, while save_path is not None, will zip the results folder
             and write it to `save_path`.
 
@@ -217,14 +242,25 @@ class AlgorithmEvaluation:
             run_batch.__name__ = f"AlgorithmEvaluation:batched[{actual_batch_size}]"
             fn = jym.precompile(run_batch, config.seed)
 
+        run_start_time = time.time()
         result = fn()
 
         if self.save_path is not None:
             result = jax.block_until_ready(result)
-            self._save(config, result, time.time() - start_time)
+            durations = {
+                "compile_duration": fn.compile_secs,
+                "run_duration": time.time() - run_start_time,
+                "total_duration": time.time() - start_time,
+            }
+            self._save(config, result, durations)
         return result
 
-    def _save(self, config: AlgorithmEvaluationConfig, result: Any, duration: float):
+    def _save(
+        self,
+        config: AlgorithmEvaluationConfig,
+        result: Any,
+        durations: dict[str, float],
+    ):
         """Write one configuration's results under `save_path`. see class docstring for the layout."""
         context = self._context(config)
         # hash of the context. Same runs in the same folder overwritten.
@@ -256,9 +292,8 @@ class AlgorithmEvaluation:
             # The arguments as given, and then everything they resolved to.
             inputs = {k: v for k, v in context.items() if k != "algorithm_parameters"}
             (run_dir / "input_parameters.json").write_text(json.dumps(inputs, indent=2))
-            (run_dir / "full_parameters.json").write_text(
-                json.dumps({**context, "duration": duration}, indent=2)
-            )
+            full = {**context, **durations, "run_info": _run_info()}
+            (run_dir / "full_parameters.json").write_text(json.dumps(full, indent=2))
 
         if self.save_as_zip:
             with tempfile.TemporaryDirectory() as tmp:
