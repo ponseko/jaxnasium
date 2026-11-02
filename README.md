@@ -173,11 +173,13 @@ See [Sweeps](https://ponseko.github.io/jaxnasium/eval/Sweeps/) and [Searches](ht
 ## Citation
 
 ```bibtex
-@software{ponse2026jaxnasium,
-  author  = {Ponse, Koen and Plaat, Aske and Moerland, Thomas},
-  title   = {Jaxnasium: Embracing PyTrees For Any-Agent, Cross-Suite Reinforcement Learning},
-  year    = {2026},
-  version = {0.1.0},
-  url     = {https://github.com/ponseko/jaxnasium},
+@misc{ponse2026jaxnasium,
+      title={Jaxnasium: Embracing PyTrees For Any-Agent, Cross-Suite Reinforcement Learning}, 
+      author={Koen Ponse and Aske Plaat and Thomas M. Moerland},
+      year={2026},
+      eprint={2610.36075},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2610.36075}, 
 }
 ```
