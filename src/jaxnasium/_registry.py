@@ -404,6 +404,7 @@ registry.register_alias("inverted_pendulum", "brax:inverted_pendulum")
 registry.register_alias("inverted_double_pendulum", "brax:inverted_double_pendulum")
 registry.register_alias("pusher", "brax:pusher")
 registry.register_alias("reacher", "brax:reacher")
+registry.register_alias("swimmer", "brax:swimmer")
 registry.register_alias("walker2d", "brax:walker2d")
 
 # Crax envs (safety-constrained Brax fork)
@@ -763,9 +764,9 @@ for _playground_env_id in (
     "AlohaSinglePegInsertion",
     "PandaPickCube",
     "PandaPickCubeOrientation",
-    # "PandaPickCubeCartesian",
+    "PandaPickCubeCartesian",
     "PandaOpenCabinet",
-    # "PandaRobotiqPushCube",
+    "PandaRobotiqPushCube",
     "LeapCubeReorient",
     "LeapCubeRotateZAxis",
     "AeroCubeRotateZAxis",  # no jax impl

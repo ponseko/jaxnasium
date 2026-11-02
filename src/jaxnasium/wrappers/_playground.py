@@ -23,6 +23,8 @@ class PlaygroundWrapper(BraxWrapper):
             action_size = self._env.action_size
             if isinstance(action_size, int):
                 action_size = (action_size,)
+            if r.shape[0] != np.prod(action_size):
+                return jym.Box(-1.0, 1.0, shape=action_size, dtype=jnp.float32)
             return jym.Box(
                 low=r[:, 0], high=r[:, 1], shape=action_size, dtype=jnp.float32
             )
