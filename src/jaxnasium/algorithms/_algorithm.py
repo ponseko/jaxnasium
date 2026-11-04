@@ -317,7 +317,7 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         """Convenience method for `RLAgent.load(file_path)`.
 
         Returns the algorithm stored in `file_path` which was saved with `save`
-        on an `RLAgent`, trainer included. Requires `jaxon` to be installed, which is not installed by default.
+        on an `RLAgent`, trainer included.
         """
         return RLAgent.load(file_path)
 
@@ -411,7 +411,7 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
     @collective
     def save(self, file_path: str):
         """Save the current state (along with the trainer) to `file_path`. This uses `jaxon`
-        internally to save the agent. `jaxon` is not installed by default, so must be installed manually.
+        internally to save the agent.
 
         Alternatively, serialization can be done like any other eqx.Module as described here:
         https://docs.kidger.site/equinox/examples/serialisation/
@@ -423,9 +423,7 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
     @classmethod
     @collective
     def load(cls, file_path: str) -> Self:
-        """Returns the agent stored in `file_path` which was saved with `save`, trainer included.
-        Requires `jaxon` to be installed, which is not installed by default.
-        """
+        """Returns the agent stored in `file_path` which was saved with `save`, trainer included."""
         from jaxnasium.algorithms.core import load_agent
 
         return load_agent(file_path)
