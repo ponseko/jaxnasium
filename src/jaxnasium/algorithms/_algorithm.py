@@ -27,7 +27,7 @@ from jaxnasium import (
 logger = logging.getLogger(__name__)
 
 
-TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent")
+TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent", covariant=True)
 
 
 class RLAlgorithm(eqx.Module, Generic[TAgent]):
