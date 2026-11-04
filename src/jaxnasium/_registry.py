@@ -1,6 +1,7 @@
 import difflib
 import logging
 from dataclasses import dataclass, field
+from types import EllipsisType
 from typing import Any, Literal
 
 from ._environment import Environment
@@ -21,6 +22,8 @@ from .wrappers import (
 )
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_WRAPPERS = ("external_lib_wrapper", LogWrapper)
 
 
 def _wrap_env(
@@ -62,7 +65,8 @@ class Registry:
     def make(
         self,
         id: str,
-        wrappers: list[type[Wrapper] | Literal["external_lib_wrapper"]] | None = None,
+        wrappers: list[type[Wrapper] | Literal["external_lib_wrapper"] | EllipsisType]
+        | None = None,
         **env_kwargs,
     ) -> Environment:
         """Create an environment instance.
@@ -73,10 +77,14 @@ class Registry:
                 can also be "external_lib_wrapper" (string): Wrapper for external libraries (e.g. Gymnax, Jumanji, Brax).
                     only used if a environment is loaded from a supported external library.
                 If None provided, we wrap the external_lib_wrapper (if applicable) and `LogWrapper`.
+                `...` in the list stands for these defaults, e.g. `[..., FlattenObservationWrapper]`.
             `**env_kwargs`: Environment constructor arguments
         """
-        if wrappers is None:
-            wrappers = ["external_lib_wrapper", LogWrapper]
+        wrappers_to_apply = [
+            wrapper
+            for item in ([...] if wrappers is None else wrappers)
+            for wrapper in (_DEFAULT_WRAPPERS if item is ... else (item,))
+        ]
         # Handle aliases
         assert id is not None, "Environment ID cannot be None"
         env = None
@@ -91,13 +99,15 @@ class Registry:
         # Try external package detection
         if ":" in id:
             package, env_name = id.split(":", 1)
-            wrap = "external_lib_wrapper" in wrappers
+            wrap = "external_lib_wrapper" in wrappers_to_apply
             env = self._make_external(package, env_name, wrap=wrap, **env_kwargs)
 
         if env is not None:
-            for wrapper in wrappers:
+            for wrapper in wrappers_to_apply:
                 if wrapper == "external_lib_wrapper":
                     continue  # applied in _make_external (if applicable)
+                elif isinstance(wrapper, str):
+                    raise ValueError(f"Unknown wrapper: {wrapper}")
                 env = _wrap_env(env, wrapper)
             return env
 

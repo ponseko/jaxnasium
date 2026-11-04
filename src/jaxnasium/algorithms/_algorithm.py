@@ -5,7 +5,8 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Any, Generic, Literal, Self
+from types import EllipsisType
+from typing import Any, Generic, Literal, Self, cast
 
 import equinox as eqx
 import jax
@@ -31,6 +32,8 @@ from jaxnasium.algorithms.core._logging import (
 )
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_CALLBACKS = (Callback(print_returns),)
 
 
 def _identity(metrics):
@@ -67,7 +70,8 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         callbacks: Functions called after every training iteration as
             `fn(key, runner_state, metrics, iteration, num_iterations)`. Wrap one in a `Callback`
             to only call it every so many iterations. Defaults to printing the episode
-            returns every 5% of training; set to `()` for no logging.
+            returns every 5% of training; set to `()` for no logging. `...` stands for
+            the defaults, e.g. `callbacks=(..., my_callback)`.
         reduce_metrics_fn: Applied after every training iteration to the returned metrics.
             maps that iteration's metrics to what `train` returns besides the trained agent.
             Defaults to `mean_episode_returns`, the mean return of the episodes
@@ -88,8 +92,8 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
     reduce_metrics_fn: Callable = eqx.field(
         static=True, default=mean_episode_returns, kw_only=True
     )
-    callbacks: tuple[Callable, ...] = eqx.field(
-        static=True, default=(Callback(print_returns),), kw_only=True
+    callbacks: tuple[Callable | EllipsisType, ...] = eqx.field(
+        static=True, default=_DEFAULT_CALLBACKS, kw_only=True
     )
 
     agent_type: type[TAgent] | PyTree[type[TAgent]] | None = eqx.field(
@@ -107,6 +111,11 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         ...
 
     def __post_init__(self):
+        self.callbacks = tuple(
+            callback
+            for item in self.callbacks
+            for callback in (_DEFAULT_CALLBACKS if item is ... else (item,))
+        )
         if self.reduce_metrics_fn == "mean":
             self.reduce_metrics_fn = mean_episode_returns
         elif self.reduce_metrics_fn is None:
@@ -139,8 +148,10 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         if self.log_function is None:  # the deprecated way to disable all callbacks
             return
         log_callback = _legacy_callback(self.log_function, self.log_interval)
-        for callback in (*log_callback, *self.callbacks):
-            callback(key, runner_state, metrics, iteration + 1, self.num_iterations)  # type: ignore
+        callbacks = cast(tuple[Callable, ...], self.callbacks)  # expand `...`
+        num_iterations = self.num_iterations  # pyright: ignore[reportAttributeAccessIssue]
+        for callback in (*log_callback, *callbacks):
+            callback(key, runner_state, metrics, iteration + 1, num_iterations)
 
     @eqx.filter_jit
     def init_agent(self, key: PRNGKeyArray, env: Environment) -> TAgent:
