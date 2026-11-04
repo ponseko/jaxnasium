@@ -13,14 +13,14 @@ _LOGWRAPPER_REQ_KEYS = ("returned_episode", "returned_episode_returns", "timeste
 
 class Callback(NamedTuple):
     """Simple (optional) callback container that calls
-    `fn(key, agent, metrics, iteration, num_iterations)` every `interval`.
+    `fn(key, runner_state, metrics, iteration, num_iterations)` every `interval`.
     `interval` is a fixed number of iterations, or a fraction of
     `num_iterations` when below 1."""
 
     fn: Callable
     interval: int | float = 0.05
 
-    def __call__(self, key, agent, metrics, iteration, num_iterations) -> None:
+    def __call__(self, key, runner_state, metrics, iteration, num_iterations) -> None:
         interval = self.interval
         if interval < 1:
             assert num_iterations is not None, (
@@ -32,7 +32,7 @@ class Callback(NamedTuple):
             call = call | (iteration == num_iterations)
         jax.lax.cond(
             call,
-            lambda: self.fn(key, agent, metrics, iteration, num_iterations),
+            lambda: self.fn(key, runner_state, metrics, iteration, num_iterations),
             lambda: None,
         )
 
@@ -60,7 +60,7 @@ def mean_episode_returns(metrics: dict[str, Any]) -> PyTree[Float[Array, ""]]:
     return jax.tree.map(_mean, metrics["returned_episode_returns"])
 
 
-def print_returns(key, agent, metrics, iteration, num_iterations) -> None:
+def print_returns(key, runner_state, metrics, iteration, num_iterations) -> None:
     """Callback printing the return of every episode finished in this iteration.
     Requires a `LogWrapper` on the environment."""
     missing = [key for key in _LOGWRAPPER_REQ_KEYS if key not in metrics]
@@ -96,7 +96,7 @@ def print_returns(key, agent, metrics, iteration, num_iterations) -> None:
     jax.debug.callback(print_on_host, {k: metrics[k] for k in _LOGWRAPPER_REQ_KEYS})
 
 
-def progress_bar(key, agent, metrics, iteration, num_iterations) -> None:
+def progress_bar(key, runner_state, metrics, iteration, num_iterations) -> None:
     """Callback showing the training progress in a `tqdm` progress bar."""
     try:
         import tqdm.auto
@@ -226,7 +226,7 @@ def _legacy_callback(
         fn = progress_bar
     else:  # a host function of the metrics and iteration
 
-        def fn(key, agent, metrics, iteration, num_iterations):
+        def fn(key, runner_state, metrics, iteration, num_iterations):
             jax.debug.callback(callback_fn, metrics, iteration)
 
     return (Callback(fn, callback_interval),)  # type: ignore

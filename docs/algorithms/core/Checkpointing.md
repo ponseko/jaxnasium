@@ -27,7 +27,8 @@ from jaxnasium.algorithms import PPO
 from jaxnasium.algorithms.core import Callback, print_returns
 
 
-def save_checkpoint(key, agent, metrics, iteration, num_iterations):
+def save_checkpoint(key, runner_state, metrics, iteration, num_iterations):
+    agent = runner_state[0]
     # Only arrays can be sent to the host; the rest (e.g. functions) is closed over
     arrays, static = eqx.partition(agent, eqx.is_array)
 

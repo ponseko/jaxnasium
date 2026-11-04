@@ -65,7 +65,7 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         multi_agent: Whether this algorithm instance operates in multi-agent mode
         auto_upgrade_multi_agent: Whether to automatically upgrade single-agent methods to multi-agent
         callbacks: Functions called after every training iteration as
-            `fn(key, agent, metrics, iteration, num_iterations)`. Wrap one in a `Callback`
+            `fn(key, runner_state, metrics, iteration, num_iterations)`. Wrap one in a `Callback`
             to only call it every so many iterations. Defaults to printing the episode
             returns every 5% of training; set to `()` for no logging.
         reduce_metrics_fn: Applied after every training iteration to the returned metrics.
@@ -133,14 +133,14 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
             )
 
     def run_callbacks(
-        self, key: PRNGKeyArray, agent: Any, metrics: Any, iteration: Array
+        self, key: PRNGKeyArray, runner_state: Any, metrics: Any, iteration: Array
     ) -> None:
         """Runs all `callbacks` in order."""
         if self.log_function is None:  # the deprecated way to disable all callbacks
             return
         log_callback = _legacy_callback(self.log_function, self.log_interval)
         for callback in (*log_callback, *self.callbacks):
-            callback(key, agent, metrics, iteration + 1, self.num_iterations)  # type: ignore
+            callback(key, runner_state, metrics, iteration + 1, self.num_iterations)  # type: ignore
 
     @eqx.filter_jit
     def init_agent(self, key: PRNGKeyArray, env: Environment) -> TAgent:

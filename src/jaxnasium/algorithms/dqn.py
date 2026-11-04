@@ -127,7 +127,7 @@ class DQN(RLAlgorithm["DQNAgent"]):
 
         def train_step(runner_state, iter):
             runner_state, metrics = self.train_iteration(runner_state, iter, env=env)
-            self.run_callbacks(key, runner_state[0], metrics, iter)
+            self.run_callbacks(key, runner_state, metrics, iter)
             return runner_state, self.reduce_metrics_fn(metrics)
 
         runner_state = (agent, buffer, *warmup_state)
