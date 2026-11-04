@@ -23,8 +23,18 @@ from jaxnasium import (
     is_wrapped,
     unwrap_to,
 )
+from jaxnasium.algorithms.core._logging import (
+    Callback,
+    _legacy_callback,
+    mean_episode_returns,
+    print_returns,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _identity(metrics):
+    return metrics
 
 
 TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent", covariant=True)
@@ -54,23 +64,34 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
             override `init_agent` instead.
         multi_agent: Whether this algorithm instance operates in multi-agent mode
         auto_upgrade_multi_agent: Whether to automatically upgrade single-agent methods to multi-agent
-        log_function: Logging function to use ("simple", "tqdm", or custom callable)
-        log_interval: Interval for logging (as fraction of total steps or absolute number)
-        reduce_metrics_fn: Reduces one training iteration's metrics to what `train`
-            returns alongside the agent. This function is called *after* log function on the
-            batch of iteration metrics. Defaults to `"mean"`, averaging the metrics across
-            the iteration. Set to `None` to return the full batch of metrics.
+        callbacks: Functions called after every training iteration as
+            `fn(key, agent, metrics, iteration, num_iterations)`. Wrap one in a `Callback`
+            to only call it every so many iterations. Defaults to printing the episode
+            returns every 5% of training; set to `()` for no logging.
+        reduce_metrics_fn: Applied after every training iteration to the returned metrics.
+            maps that iteration's metrics to what `train` returns besides the trained agent.
+            Defaults to `mean_episode_returns`, the mean return of the episodes
+            finished in the iteration. Set to `None` to return the full metrics.
+
+        log_function: Deprecated, use `callbacks`. Logging function to use ("simple", "tqdm", or custom callable)
+        log_interval: Deprecated, use `callbacks`. Interval for logging (as fraction of total steps or absolute number)
     """
 
     multi_agent: bool = eqx.field(static=True, default=False, kw_only=True)
     auto_upgrade_multi_agent: bool = eqx.field(static=True, default=True, kw_only=True)
-    log_function: Callable | Literal["simple", "tqdm"] | None = eqx.field(
-        static=True, default="simple", kw_only=True
+    log_function: Callable | Literal["simple", "tqdm", "unset"] | None = eqx.field(
+        static=True, default="unset", kw_only=True
     )
-    log_interval: int | float = eqx.field(static=True, default=0.05, kw_only=True)
-    reduce_metrics_fn: Callable | Literal["mean"] | None = eqx.field(
-        static=True, default="mean", kw_only=True
+    log_interval: int | float | Literal["unset"] = eqx.field(
+        static=True, default="unset", kw_only=True
     )
+    reduce_metrics_fn: Callable = eqx.field(
+        static=True, default=mean_episode_returns, kw_only=True
+    )
+    callbacks: tuple[Callable, ...] = eqx.field(
+        static=True, default=(Callback(print_returns),), kw_only=True
+    )
+
     agent_type: type[TAgent] | PyTree[type[TAgent]] | None = eqx.field(
         static=True, default=None, kw_only=True
     )
@@ -84,6 +105,42 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         `agent=None` builds a fresh agent; passing an existing agent continues training it.
         """
         ...
+
+    def __post_init__(self):
+        if self.reduce_metrics_fn == "mean":
+            self.reduce_metrics_fn = mean_episode_returns
+        elif self.reduce_metrics_fn is None:
+            self.reduce_metrics_fn = _identity
+
+    def __check_init__(self):
+        if self.log_function is None:
+            warnings.warn(
+                "`log_function` is deprecated, for now `log_function=None` disables all "
+                "`callbacks`, but the field will be removed in the future. Use `callbacks=()` instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+        elif self.log_function != "unset" or self.log_interval != "unset":
+            if "unset" in (self.log_function, self.log_interval):
+                raise ValueError(
+                    "`log_function` and `log_interval` are deprecated and only work "
+                    "together: use `callbacks` instead."
+                )
+            warnings.warn(
+                "`log_function` and `log_interval` are deprecated, use `callbacks` instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+    def run_callbacks(
+        self, key: PRNGKeyArray, agent: Any, metrics: Any, iteration: Array
+    ) -> None:
+        """Runs all `callbacks` in order."""
+        if self.log_function is None:  # the deprecated way to disable all callbacks
+            return
+        log_callback = _legacy_callback(self.log_function, self.log_interval)
+        for callback in (*log_callback, *self.callbacks):
+            callback(key, agent, metrics, iteration + 1, self.num_iterations)  # type: ignore
 
     @eqx.filter_jit
     def init_agent(self, key: PRNGKeyArray, env: Environment) -> TAgent:
@@ -223,11 +280,12 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
                 "as it allows for easier checkpointing and resuming training."
             )
         if not is_wrapped(env, LogWrapper) and (
-            self.reduce_metrics_fn == "mean" or self.log_function == "simple"
+            self.reduce_metrics_fn is mean_episode_returns
+            or any(getattr(c, "fn", c) is print_returns for c in self.callbacks)
         ):
             logger.warning(
                 f"Adding a `LogWrapper` to the environment, as {type(self).__name__} has "
-                "set 'reduce_metrics_fn=mean' or 'log_function=simple', which require "
+                "set 'reduce_metrics_fn=mean_episode_returns' or prints returns, which require "
                 "episode statistics from a `LogWrapper`."
             )
             if is_wrapped(env, VecEnvWrapper):

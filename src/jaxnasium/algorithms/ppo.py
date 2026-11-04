@@ -19,7 +19,6 @@ from jaxnasium.algorithms.core import (
     Normalizer,
     Schedule,
     Transition,
-    scan_callback,
     scan_minibatch_epoch,
 )
 
@@ -109,15 +108,6 @@ class PPO(RLAlgorithm["PPOAgent"]):
         if agent is None:
             agent = self.init_agent(key, env)
 
-        train_iteration_fn = partial(self.train_iteration, env=env)
-        train_iteration_fn = scan_callback(
-            func=train_iteration_fn,
-            callback_fn=self.log_function,
-            callback_interval=self.log_interval,
-            n=self.num_iterations,
-            reduce_ys_fn=self.reduce_metrics_fn,
-        )
-
         obsv, env_state = env.reset(jax.random.split(key, self.num_envs))
         warmup_length = max(1, self.warmup_steps // self.num_envs)
         warmup_state, warmup_trajectory = self._collect_rollout(
@@ -125,9 +115,14 @@ class PPO(RLAlgorithm["PPOAgent"]):
         )
         agent = agent.update_normalizer(warmup_trajectory)
 
+        def train_step(runner_state, iter):
+            runner_state, metrics = self.train_iteration(runner_state, iter, env=env)
+            self.run_callbacks(key, runner_state[0], metrics, iter)
+            return runner_state, self.reduce_metrics_fn(metrics)
+
         runner_state = (agent, *warmup_state)
         runner_state, metrics = jax.lax.scan(
-            train_iteration_fn, runner_state, jnp.arange(self.num_iterations)
+            train_step, runner_state, jnp.arange(self.num_iterations)
         )
         updated_agent = runner_state[0]
         return updated_agent, metrics
