@@ -44,6 +44,8 @@ KNOWN_FAILURES: dict[str, str] = {
     "NoisyStatelessMetaCartPole": "Not runnable in newer jax versions > 0.10",
     "LeapCubeReorient": "Uses invalid jnp.clip call (older version)",
     "safe_velocity_swimmer": "Uses invalid jnp.clip call (older version)",
+    "swimmer": "Uses invalid jnp.clip call (older version)",
+    "PandaRobotiqPushCube": "Uses invalid jnp.clip call (older version)",
 }
 
 # Skipped for some limatation in default configuration of algorithms

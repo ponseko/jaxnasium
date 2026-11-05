@@ -190,6 +190,39 @@ def test_flatten_action_space_wrapper(name: str):
     assert jnp.all(jnp.isfinite(jnp.asarray(jax.tree.leaves(timestep.reward))))
 
 
+def test_flatten_action_space_wrapper_masks():
+    from jaxnasium.wrappers._wrappers import _to_single_discrete_mask as flatten
+
+    # flat actions decode with the first dimension fastest:
+    # (0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)
+    space = MultiDiscrete(np.array([3, 2]))
+    joint = np.array([[1, 0], [1, 1], [0, 1]])  # shape nvec
+    per_dim = np.array([[1, 0, 1], [0, 1, 0]])  # one (padded) row per dimension
+    assert flatten(space, joint).tolist() == [1, 1, 0, 0, 1, 1]
+    assert flatten(space, per_dim).tolist() == [0, 0, 0, 1, 0, 1]
+
+    # earlier leaves decode fastest; valid only where both leaves are
+    tree_space = {"a": Discrete(2), "b": space}
+    expected = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0]
+    assert flatten(tree_space, {"a": np.array([1, 0]), "b": joint}).tolist() == expected
+
+
+def test_flatten_action_space_wrapper_joint_mask_env():
+    joint_mask_obs = lambda: jym.AgentObservation(
+        observation=Box(-1.0, 1.0, (6,)),
+        action_mask=Box(np.zeros((4, 10), bool), np.ones((4, 10), bool), (4, 10), bool),
+    )
+    env = make_proxy_env(joint_mask_obs, lambda: MultiDiscrete(np.array([4, 10])))
+    wrapped = jym.FlattenActionSpaceWrapper(env)
+
+    assert wrapped.action_space.n == 40
+    assert wrapped.observation_space.action_mask.shape == (40,)  # type: ignore
+    obs, _, timestep = _run_single_reset_step(wrapped)
+    assert obs.action_mask.shape == (40,)
+    assert timestep.observation.action_mask.shape == (40,)  # type: ignore
+    assert timestep.info["received_action"].shape == (2,)
+
+
 def test_scale_reward_wrapper():
     base_env = _make_base_env()
     scale = 0.25
