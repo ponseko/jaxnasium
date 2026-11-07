@@ -72,6 +72,29 @@ JAX implementation of navigation environments, providing various gridworld navig
 
 JAX CHIP-8 emulator environments (Brix, Pong, Tetris, and other classic games).
 
+### [Jaxtari](https://github.com/k4ntz/Jaxtari)
+
+GPU-accelerated reimplementations of 70 Atari 2600 games in JAX, available as `jaxtari:<game>`
+(e.g. `jaxtari:breakout`). Jaxtari needs sprite assets, installed once via `install-sprites`
+(or `python -m jaxtari.install_sprites`): the original sprites if you own the Atari ROMs, a
+replacement pack otherwise. The pack changes the pixel observations, and the dynamics of the few
+games that derive collisions from sprites.
+
+Environments are wrapped in Jaxtari's own `AtariWrapper` (sticky actions, no-op and fire reset,
+episodic life, truncation after 108k frames) and observation wrappers (frame skip and stack of 4).
+`observation_style` selects the observations:
+
+```python
+env = jym.make("jaxtari:breakout")  # (4, 84, 84) grayscale pixels (default)
+env = jym.make("jaxtari:breakout", observation_style="objects")  # flat vector of object features
+```
+
+!!! note
+    Following Jaxtari's defaults, rewards are clipped and a lost life ends the episode
+    (the game itself continues). Logged and evaluated returns are therefore clipped returns per
+    life; the unclipped reward and the real game over are in `info["env_reward"]` and
+    `info["env_done"]`.
+
 ### [Craftax](https://github.com/MichaelTMatthews/Craftax)
 
 JAX implementation of Craftax environments, inspired by Minecraft-like crafting and survival tasks.
