@@ -10,7 +10,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float, Int, PRNGKeyArray, PyTree, Real
+from jaxtyping import Array, Float, PRNGKeyArray, PyTree, Real
 
 import jaxnasium as jym
 from jaxnasium._environment import (
@@ -593,60 +593,97 @@ class ScaleRewardWrapper(TransformRewardWrapper):
         self.transform_fn = lambda r: r * scale
 
 
-class DiscreteActionWrapper(Wrapper):
+class TransformActionWrapper(Wrapper):
+    """
+    **Arguments:**
+
+    - `env`: Environment to wrap.
+    - `func`: Function applied to every action leaf, or a pytree of functions with the
+        same structure as the action (one function per leaf).
+    - `action_space_fn`: Function giving the new space of every action leaf of the
+        wrapped environment, or a pytree of them (same structure). If None, the action
+        space is kept, so pass it whenever `func` expects a different action space.
+    """
+
+    func: Callable | PyTree[Callable]
+    action_space_fn: Callable | PyTree[Callable] | None = None
+
+    def step(
+        self, key: PRNGKeyArray, state: TEnvState, action: PyTree[int | float | Array]
+    ) -> tuple[TimeStep, TEnvState]:
+        return self._env.step(key, state, self._map_leaves(self.func, action))
+
+    @property
+    def action_space(self) -> Space | PyTree[Space]:
+        space = self._env.action_space
+        if self.action_space_fn is None:
+            return space
+        return self._map_leaves(self.action_space_fn, space)
+
+    @property
+    def original_action_space(self) -> Space | PyTree[Space]:
+        """The action space of the wrapped environment."""
+        return self._env.action_space
+
+    @staticmethod
+    def _map_leaves(fns: Callable | PyTree[Callable], tree: PyTree) -> PyTree:
+        if callable(fns):
+            return jax.tree.map(fns, tree)
+        return jax.tree.map(lambda fn, x: fn(x), fns, tree)
+
+
+class ClipActionWrapper(TransformActionWrapper):
+    """Clip continuous (`Box`) actions to the bounds of the action space.
+    Other actions are a simply no-op.
+
+    **Arguments:**
+
+    - `env`: Environment to wrap.
+    """
+
+    def __init__(self, env: Environment):
+        def clip_fn(space):
+            if isinstance(space, Box):
+                return lambda a: jnp.clip(a, space.low, space.high)
+            return lambda a: a
+
+        super().__init__(env, func=jax.tree.map(clip_fn, env.action_space))
+
+
+class DiscreteActionWrapper(TransformActionWrapper):
     """
     Wrapper to convert continuous actions to discrete actions.
 
     **Arguments:**
 
-    - `_env`: Environment to wrap.
+    - `env`: Environment to wrap.
     - `num_actions`: Number of discrete actions to convert to.
     """
 
-    num_actions: int
+    num_actions: int = eqx.field(kw_only=True)  # kw only is ignored
 
-    def step(
-        self,
-        key: PRNGKeyArray,
-        state: TEnvState,
-        action: PyTree[int | Int[Array, " num_actions"]],
-    ) -> tuple[TimeStep, TEnvState]:
-        def convert_to_continuous(space, discrete_action):
-            assert hasattr(space, "low") and hasattr(space, "high"), (
-                "Original action space must have 'low' and 'high' attributes. Is this a continuous action space?"
+    def __init__(self, env: Environment, num_actions: int):
+        def to_continuous(space):
+            if not isinstance(space, Box):
+                raise TypeError(f"Expected Box actions, got {space}.")
+            low = np.broadcast_to(space.low, space.shape)
+            high = np.broadcast_to(space.high, space.shape)
+            return lambda a: low + (a / (num_actions - 1)) * (high - low)
+
+        def to_discrete(space):
+            if space.shape in ((), (1,)):
+                return Discrete(num_actions)
+            if len(space.shape) == 1:
+                return MultiDiscrete(nvec=np.full(space.shape[0], num_actions))
+            raise ValueError(
+                f"Action space of shape {space.shape} is not supported for DiscreteActionWrapper."
+                "Please raise an issue on GitHub if you need this feature."
             )
-            low = jnp.broadcast_to(space.low, space.shape)
-            high = jnp.broadcast_to(space.high, space.shape)
-            return low + (discrete_action / (self.num_actions - 1)) * (high - low)
 
-        action = jax.tree.map(convert_to_continuous, self.original_action_space, action)
-        return self._env.step(key, state, action)
-
-    @property
-    def action_space(self) -> PyTree[Discrete | MultiDiscrete]:
-        def convert_to_discrete_or_multi_discrete(space):
-            assert hasattr(space, "shape")
-            if space.shape == () or space.shape == (1,):
-                return Discrete(self.num_actions)
-            elif len(space.shape) == 1:
-                return MultiDiscrete(nvec=np.array([self.num_actions] * space.shape[0]))
-            else:
-                raise ValueError(
-                    f"Action space of shape {space.shape} is not supported for DiscreteActionWrapper."
-                    "Please raise an issue on GitHub if you need this feature."
-                )
-
-        return jax.tree.map(
-            convert_to_discrete_or_multi_discrete, self._env.action_space
+        super().__init__(
+            env, jax.tree.map(to_continuous, env.action_space), to_discrete
         )
-
-    @property
-    def original_action_space(self) -> Space | PyTree[Space]:
-        """
-        Return the original action space of the environment.
-        This is useful for algorithms that need to know the original action space.
-        """
-        return self._env.action_space
+        self.num_actions = num_actions
 
 
 class MetaParamsWrapper(Wrapper):

@@ -335,6 +335,43 @@ def test_normalize_vec_reward_wrapper():
     assert not jnp.allclose(norm_timestep.reward, raw_rewards)
 
 
+def test_transform_action_wrapper():
+    base_env = make_proxy_env(obs_box_vector, lambda: Box(-2.0, 2.0, (3,), jnp.float32))
+    env = jym.TransformActionWrapper(
+        base_env,
+        lambda a: 2 * a,
+        lambda s: Box(s.low / 2, s.high / 2, s.shape, s.dtype),
+    )
+    assert env.action_space == Box(-1.0, 1.0, (3,), jnp.float32)
+
+    _, state = env.reset(SEED)
+    action = jnp.array([-1.0, 0.0, 0.5])
+    timestep, _ = env.step(SEED, state, action)
+    assert jnp.array_equal(timestep.info["received_action"], 2 * action)
+
+
+def test_clip_action_wrapper():
+    action_space = {
+        "steer": Box(low=-2.0, high=5.0, shape=(), dtype=jnp.float32),
+        "thrust": Box(low=-1.0, high=1.0, shape=(3,), dtype=jnp.float32),
+        "gear": Discrete(3),
+    }
+    env = jym.ClipActionWrapper(make_proxy_env(obs_box_vector, lambda: action_space))
+    assert env.action_space == action_space
+
+    _, state = env.reset(SEED)
+    action = {
+        "steer": jnp.array(9.0),
+        "thrust": jnp.array([-3.0, 0.5, 3.0]),
+        "gear": jnp.array(2),
+    }
+    timestep, _ = env.step(SEED, state, action)
+    received = timestep.info["received_action"]
+    assert received["steer"] == 5.0
+    assert jnp.array_equal(received["thrust"], jnp.array([-1.0, 0.5, 1.0]))
+    assert received["gear"] == 2  # non-Box actions are not clipped
+
+
 def test_discrete_action_wrapper():
     num_actions = 11
     base_env = make_proxy_env(
@@ -405,10 +442,10 @@ def test_discrete_action_wrapper_pytree_continuous():
     base_env = make_proxy_env(obs_box_vector, lambda: action_space)
     env = jym.DiscreteActionWrapper(base_env, num_actions=num_actions)
 
-    assert isinstance(env.action_space["steer"], Discrete)
-    assert env.action_space["steer"].n == num_actions
-    assert isinstance(env.action_space["thrust"], MultiDiscrete)
-    assert jnp.array_equal(env.action_space["thrust"].nvec, np.array([num_actions] * 3))
+    assert isinstance(env.action_space["steer"], Discrete)  # type: ignore[attr-defined]
+    assert env.action_space["steer"].n == num_actions  # type: ignore[attr-defined]
+    assert isinstance(env.action_space["thrust"], MultiDiscrete)  # type: ignore[attr-defined]
+    assert jnp.array_equal(env.action_space["thrust"].nvec, np.array([num_actions] * 3))  # type: ignore[attr-defined]
 
     discrete_action = jym.tree.mul(
         jym.tree.ones_like(env.sample_action(SEED)), num_actions // 2
