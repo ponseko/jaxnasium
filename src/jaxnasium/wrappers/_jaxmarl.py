@@ -42,7 +42,11 @@ class JaxMARLWrapper(Wrapper):
 
         try:  # Some environments have an action mask
             action_masks = self._env.get_avail_actions(state)
-            obs = {k: AgentObservation(v, action_masks[k]) for k, v in obs.items()}
+            discrete = self._discrete_agents()
+            obs = {
+                k: AgentObservation(v, action_masks[k]) if k in discrete else v
+                for k, v in obs.items()
+            }
         except Exception:
             pass
 
@@ -53,10 +57,10 @@ class JaxMARLWrapper(Wrapper):
     ) -> tuple[TimeStep, Any]:
         obs, state_step, reward, done, info = self._env.step(key, state, action)
 
-        terminated = done  # No truncation in JaxMARL (?)
-        # remove the __all__ key from the done dict
+        # No truncation in JaxMARL (?)
         info["JAXMARL_ORIG_DONE"] = done
-        done.pop("__all__")
+        episode_done = done.pop("__all__")
+        terminated = jax.tree.map(lambda d: jnp.logical_or(d, episode_done), done)
         if "__all__" in reward:
             reward.pop("__all__")
         truncated = jax.tree.map(lambda x: jnp.full_like(x, False), done)
@@ -66,7 +70,11 @@ class JaxMARLWrapper(Wrapper):
 
         try:  # Some environments have an action mask
             action_masks = self._env.get_avail_actions(state_step)
-            obs = {k: AgentObservation(v, action_masks[k]) for k, v in obs.items()}
+            discrete = self._discrete_agents()
+            obs = {
+                k: AgentObservation(v, action_masks[k]) if k in discrete else v
+                for k, v in obs.items()
+            }
         except Exception:
             pass
 
@@ -105,9 +113,20 @@ class JaxMARLWrapper(Wrapper):
             )
         except Exception:  # no action mask
             return obs_spaces  # type: ignore[reportGeneralTypeIssues]
+        discrete = self._discrete_agents()
         return {
             a: AgentObservation(space, Box(0, 1, masks[a].shape, masks[a].dtype))
+            if a in discrete
+            else space
             for a, space in obs_spaces.items()  # type: ignore[reportAttributeAccessIssue]
+        }
+
+    def _discrete_agents(self) -> set:
+        """The agents with (multi-)discrete actions. Only these should get masks"""
+        return {
+            a
+            for a, s in self.action_space.items()
+            if hasattr(s, "n") or hasattr(s, "nvec")
         }
 
     @property
