@@ -23,6 +23,7 @@ jobs:
           - { suite: factoriax, install: --extra factoriax }
           - { suite: gymnax, install: --extra gymnax }
           - { suite: jaxmarl, install: --extra jaxmarl }
+          - { suite: jaxtari, install: --extra jaxtari }
           - { suite: jumanji, install: --extra jumanji }
           # kinetix-env pins jax<=0.9.0, so it has its own resolution (see `conflicts` in pyproject.toml)
           - { suite: kinetix, install: --extra kinetix }
@@ -49,6 +50,19 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --group dev --extra algs ${{ matrix.install }}
+
+      - name: Restore Jaxtari sprites
+        if: matrix.suite == 'jaxtari'
+        id: jaxtari-sprites
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/jaxtari
+          key: jaxtari-sprites-${{ hashFiles('uv.lock') }}
+
+      - name: Install Jaxtari sprites
+        if: matrix.suite == 'jaxtari' && steps.jaxtari-sprites.outputs.cache-hit != 'true'
+        # Declining the ROM ownership prompt installs the replacement sprite pack
+        run: echo n | uv run --no-sync python -m jaxtari.install_sprites
 
       - name: Restore JAX compilation cache
         uses: actions/cache@v4

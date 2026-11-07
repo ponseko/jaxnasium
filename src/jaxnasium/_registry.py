@@ -237,6 +237,18 @@ class Registry:
                 if wrap:  # Based on Gymnax, but with some changes
                     return _wrap_env(env, KinetixWrapper, _params=env_params)
                 return env  # type: ignore
+            elif package == "jaxtari":
+                import jaxtari  # type: ignore
+
+                observation_style = env_kwargs.pop("observation_style", "pixels")
+                env = jaxtari.make(env_name, **env_kwargs)  # type: ignore
+                if wrap:
+                    from .wrappers._jaxtari import JaxAtariWrapper
+
+                    return _wrap_env(
+                        env, JaxAtariWrapper, observation_style=observation_style
+                    )
+                return env  # type: ignore
             elif package == "playground":
                 import mujoco_playground  # type: ignore
 
@@ -794,3 +806,21 @@ for _size in ("S", "M", "L"):
     registry.register_alias(
         f"Kinetix-Random-{_size}", f"kinetix:random-{_size.lower()}"
     )
+
+# Jaxtari envs (JAX reimplementations of Atari 2600 games). Prefixed ids only, to avoid clashes with
+# other libraries
+for _jaxtari_id in (
+    "amidar", "airraid", "alien", "asterix", "asteroids", "atlantis", "bankheist",
+    "beamrider", "berzerk", "blackjack", "boxing", "breakout", "casinoblackjack",
+    "casinofivestudpoker", "casinopokersolitaire", "centipede", "choppercommand",
+    "donkeykong", "enduro", "fishingderby", "flagcapture", "freeway", "frostbite",
+    "galaxian", "gopher", "gravitar", "hangman", "hauntedhouse", "humancannonball",
+    "journeyescape", "kangaroo", "kingkong", "klax", "lasergates", "namethisgame",
+    "phoenix", "pong", "qbert", "riverraid", "roadrunner", "seaquest", "sirlancelot",
+    "skiing", "slotmachine", "spaceinvaders", "spacewar", "surround", "tennis",
+    "tetris", "timepilot", "tron", "turmoil", "upndown", "venture", "videocheckers",
+    "videochess", "videocube", "videopinball", "wordzapper", "wizardofwor", "assault",
+    "backgammon", "othello", "mspacman", "montezumarevenge", "pacman", "kaboom",
+    "basicmath", "miniaturegolf", "yarsrevenge",
+):  # fmt: skip
+    registry.register_alias(f"jaxtari:{_jaxtari_id}", f"jaxtari:{_jaxtari_id}")
