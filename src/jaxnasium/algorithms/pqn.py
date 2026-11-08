@@ -39,7 +39,7 @@ class PQN(RLAlgorithm["PQNAgent"]):
     learning_rate_end: float | None = eqx.field(static=True, default=None)
     epsilon_start: float = 1.0
     epsilon_end: float | None = eqx.field(static=True, default=0.05)
-    exploration_fraction: float = eqx.field(static=True, default=0.5)
+    exploration_fraction: float = eqx.field(static=True, default=0.3)
     """ Fraction of `total_timesteps` over which epsilon anneals from start to end. """
     gamma: float = 0.99
     max_grad_norm: float | None = 10.0
@@ -47,8 +47,8 @@ class PQN(RLAlgorithm["PQNAgent"]):
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
     num_envs: int = eqx.field(static=True, default=12)
-    num_steps: int = eqx.field(static=True, default=128)  # steps per environment
-    num_minibatches: int = eqx.field(static=True, default=4)  # Number of mini-batches
+    num_steps: int = eqx.field(static=True, default=32)  # steps per environment
+    num_minibatches: int = eqx.field(static=True, default=16)  # Number of mini-batches
     num_epochs: int = eqx.field(static=True, default=4)  # K epochs
     warmup_steps: int = eqx.field(static=True, default=5_000)
     """Normalizer statistics warmup steps."""
