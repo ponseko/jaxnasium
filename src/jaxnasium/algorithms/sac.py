@@ -393,16 +393,17 @@ class SACAgent(RLAgent):
         return self.normalizer.normalize_reward(rewards)
 
     def _compute_soft_target(self, action_dist, q, action_log_prob=None):
-        min_q = q.min(axis=0)
         if _is_categorical_distribution(action_dist):
+            # For discrete, we take a simple average over the ensamble (no min trick).
+            mean_q = q.mean(axis=0)
             # for wrapped in Independent:
             action_dist = getattr(action_dist, "distribution", action_dist)
             action_log_prob = jax.nn.log_softmax(action_dist.logits)
-            target = min_q - self.alpha() * action_log_prob
+            target = mean_q - self.alpha() * action_log_prob
             weighted_target = (action_dist.probs * target).sum(axis=-1)
             return weighted_target
         assert action_log_prob is not None
-        min_q = jym.tree.batch_mean(min_q)
+        min_q = jym.tree.batch_mean(q.min(axis=0))
         target = min_q - self.alpha() * action_log_prob
         return target
 
