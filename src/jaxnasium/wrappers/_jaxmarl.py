@@ -106,11 +106,20 @@ class JaxMARLWrapper(Wrapper):
         obs_spaces = jax.tree.map(_convert_jaxmarl_multidiscrete, obs_spaces)
         obs_spaces = gymnasium_to_jaxnasium_space(obs_spaces)
 
+        # infer and adjust obs from the env.reset as some declared spaces
+        # do not align with the actual step returned values
+        obs, state = jax.eval_shape(self._env.reset, jax.random.PRNGKey(0))
+        obs.pop("world_state", None)  # (not in declared spaces, removed in step/reset)
+
+        def _returned_shape(space, o):
+            if isinstance(space, Box) and space.shape != o.shape:
+                return Box(-jnp.inf, jnp.inf, o.shape, space.dtype)
+            return space
+
+        obs_spaces = jax.tree.map(_returned_shape, obs_spaces, obs)
+
         try:  # Mirror the action masks that `reset` and `step` add to the observations
-            masks = jax.eval_shape(
-                lambda key: self._env.get_avail_actions(self._env.reset(key)[1]),
-                jax.random.PRNGKey(0),
-            )
+            masks = jax.eval_shape(self._env.get_avail_actions, state)
         except Exception:  # no action mask
             return obs_spaces  # type: ignore[reportGeneralTypeIssues]
         discrete = self._discrete_agents()
