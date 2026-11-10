@@ -295,3 +295,33 @@ def test_valid_indices_multi_agent_excludes_if_any_agent_truncated() -> None:
     valid = buffer._get_flat_valid_start_indices(with_next_obs=True).reshape(length, 2)
     assert not jnp.any(valid[3])
     assert jnp.all(valid[2])
+
+
+def test_valid_indices_infer_next_obs_keeps_truncated_when_terminated() -> None:
+    # A transition that terminates at the step limit (e.g. one-step episodes) does not bootstrap
+    length = 6
+    transition, multi = _make_single_and_multi_agent_transition(length)
+    transition = transition.replace(
+        terminated=transition.terminated.at[2].set(True).at[4, 0].set(True),
+        truncated=transition.truncated.at[2].set(True).at[4].set(True),
+    )
+    buffer = TransitionBuffer(
+        max_size=length * 2, sample_batch_size=4, data_sample=transition
+    )
+    buffer = buffer.insert(transition)
+
+    valid = buffer._get_flat_valid_start_indices(with_next_obs=True).reshape(length, 2)
+    assert jnp.all(valid[2])
+    assert valid[4, 0] and not valid[4, 1]  # env 1 is only truncated
+
+    # Multi-agent: only when every agent terminated
+    multi["agent0"] = multi["agent0"].replace(
+        terminated=multi["agent0"].terminated.at[3].set(True),
+        truncated=multi["agent0"].truncated.at[3].set(True),
+    )
+    buffer = TransitionBuffer(
+        max_size=length * 2, sample_batch_size=4, data_sample=multi
+    )
+    buffer = buffer.insert(multi)
+    valid = buffer._get_flat_valid_start_indices(with_next_obs=True).reshape(length, 2)
+    assert not jnp.any(valid[3])
