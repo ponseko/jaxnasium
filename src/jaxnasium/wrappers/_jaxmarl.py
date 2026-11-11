@@ -1,3 +1,4 @@
+import warnings
 from typing import Any
 
 import jax
@@ -28,17 +29,18 @@ class JaxMARLWrapper(Wrapper):
     **Arguments:**
 
     - `_env`: JaxMARL environment.
+    - `centralized_critic`: For CTDE: give every agent a `critic_observation` with the global
+        `world_state` (SMAX), or, for environments without a `world state`, all agents' observations
+        (flattened and concatenated).
     """
 
     _env: Any
     _multi_agent: bool = True
-    remove_world_state: bool = True
-    """ Removes the world_state that is present in some environments from the observation. Required in Jaxnasium algorithms """
+    centralized_critic: bool = False
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
         obs, state = self._env.reset(key)
-        if "world_state" in obs and self.remove_world_state:
-            obs.pop("world_state")
+        world_state = obs.pop("world_state", None)
 
         try:  # Some environments have an action mask
             action_masks = self._env.get_avail_actions(state)
@@ -50,6 +52,8 @@ class JaxMARLWrapper(Wrapper):
         except Exception:
             pass
 
+        if self.centralized_critic:
+            obs = self._add_critic_observation(obs, world_state)
         return obs, state
 
     def step(
@@ -65,8 +69,7 @@ class JaxMARLWrapper(Wrapper):
             reward.pop("__all__")
         truncated = jax.tree.map(lambda x: jnp.full_like(x, False), done)
 
-        if "world_state" in obs and self.remove_world_state:
-            obs.pop("world_state")
+        world_state = obs.pop("world_state", None)
 
         try:  # Some environments have an action mask
             action_masks = self._env.get_avail_actions(state_step)
@@ -77,6 +80,9 @@ class JaxMARLWrapper(Wrapper):
             }
         except Exception:
             pass
+
+        if self.centralized_critic:
+            obs = self._add_critic_observation(obs, world_state)
 
         timestep_step = TimeStep(
             observation=obs,
@@ -121,14 +127,46 @@ class JaxMARLWrapper(Wrapper):
         try:  # Mirror the action masks that `reset` and `step` add to the observations
             masks = jax.eval_shape(self._env.get_avail_actions, state)
         except Exception:  # no action mask
-            return obs_spaces  # type: ignore[reportGeneralTypeIssues]
+            return self._add_critic_space(obs_spaces)  # type: ignore[reportGeneralTypeIssues]
         discrete = self._discrete_agents()
-        return {
+        obs_spaces = {
             a: AgentObservation(space, Box(0, 1, masks[a].shape, masks[a].dtype))
             if a in discrete
             else space
             for a, space in obs_spaces.items()  # type: ignore[reportAttributeAccessIssue]
         }
+        return self._add_critic_space(obs_spaces)
+
+    def _add_critic_observation(self, obs: dict, world_state: Any) -> dict:
+        """
+        If `world_state` exists, add this to each agents critic observation.
+        Else, add each agents observation (flattened and concatenated) as the critic observation of the others.
+
+        Every agent's `AgentObservation` gets `world_state` as its critic observation; without one,
+        all agents' observations, flattened and concatenated."""
+        for agent, o in obs.items():
+            if not isinstance(o, AgentObservation):
+                obs[agent] = AgentObservation(o)
+        if world_state is None:
+            warnings.warn(
+                "centralized_critic: this environment has no world state; the critic observes all "
+                "agents' observations (flattened and concatenated) instead."
+            )
+            world_state = jnp.concatenate(
+                [jnp.ravel(o.observation) for o in obs.values()]
+            )
+        return {
+            agent: o.replace(critic_observation=world_state) for agent, o in obs.items()
+        }
+
+    def _add_critic_space(self, obs_spaces: dict) -> dict:
+        """Mirror the critic observations that `reset` and `step` add."""
+        if not self.centralized_critic:
+            return obs_spaces
+        obs, _ = jax.eval_shape(self.reset, jax.random.PRNGKey(0))
+        critic = next(iter(obs.values())).critic_observation
+        critic_space = Box(-jnp.inf, jnp.inf, critic.shape, critic.dtype)
+        return self._add_critic_observation(obs_spaces, critic_space)
 
     def _discrete_agents(self) -> set:
         """The agents with (multi-)discrete actions. Only these should get masks"""

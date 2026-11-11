@@ -182,9 +182,12 @@ class Registry:
             elif package == "jaxmarl":
                 import jaxmarl  # type: ignore
 
+                centralized_critic = env_kwargs.pop("centralized_critic", False)
                 env = jaxmarl.make(env_name, **env_kwargs)
                 if wrap:
-                    return _wrap_env(env, JaxMARLWrapper)
+                    return _wrap_env(
+                        env, JaxMARLWrapper, centralized_critic=centralized_critic
+                    )
                 return env  # type: ignore
             elif package == "xminigrid":
                 import xminigrid  # type: ignore
