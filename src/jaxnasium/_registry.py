@@ -810,7 +810,9 @@ for _size in ("S", "M", "L"):
 # Jaxtari envs (JAX reimplementations of Atari 2600 games). Prefixed ids only, to avoid clashes with
 # other libraries
 for _jaxtari_id in (
-    "amidar", "airraid", "alien", "asterix", "asteroids", "atlantis", "bankheist",
+    "amidar",
+    # "airraid",
+    "alien", "asterix", "asteroids", "atlantis", "bankheist",
     "beamrider", "berzerk", "blackjack", "boxing", "breakout", "casinoblackjack",
     "casinofivestudpoker", "casinopokersolitaire", "centipede", "choppercommand",
     "donkeykong", "enduro", "fishingderby", "flagcapture", "freeway", "frostbite",

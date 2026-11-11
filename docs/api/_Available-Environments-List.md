@@ -360,7 +360,6 @@
 - `kinetix:l`
 - `kinetix:random-l`
 - `jaxtari:amidar`
-- `jaxtari:airraid`
 - `jaxtari:alien`
 - `jaxtari:asterix`
 - `jaxtari:asteroids`
