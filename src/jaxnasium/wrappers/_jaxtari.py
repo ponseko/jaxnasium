@@ -54,6 +54,8 @@ class JaxAtariWrapper(Wrapper):
         return obs[..., 0]
 
     def reset(self, key: PRNGKeyArray) -> tuple[Observation, TEnvState]:
+        if jnp.issubdtype(key.dtype, jax.dtypes.prng_key):
+            key = jax.random.key_data(key)
         obs, env_state = self._env.reset(key)
         return self._process_obs(obs), env_state
 
