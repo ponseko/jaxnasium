@@ -44,7 +44,6 @@ KNOWN_FAILURES: dict[str, str] = {
     "safe_velocity_swimmer": "Uses invalid jnp.clip call (older version)",
     "swimmer": "Uses invalid jnp.clip call (older version)",
     "PandaRobotiqPushCube": "Uses invalid jnp.clip call (older version)",
-    "jaxtari:airraid": "Crashes on construction with the replacement sprite pack (empty enemy sprite crop)",
 }
 
 # Skipped for some limatation in default configuration of algorithms
