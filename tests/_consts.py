@@ -1,6 +1,7 @@
 from jaxnasium.algorithms import DQN, PPO, PQN, SAC
 from jaxnasium.algorithms.architectures import MLP
 from jaxnasium.wrappers import Wrapper
+from jaxnasium.wrappers._wrappers import FlattenActionSpaceWrapper
 
 DISCRETE_ALGS = [PPO, PQN, DQN, SAC]
 CONTINUOUS_ALGS = [PPO, SAC]
@@ -19,7 +20,16 @@ LEARN_CONFIG_CONTINUOUS: dict[type, dict] = {
 }
 
 # Optional wrappers applied before environment use.
-ENV_WRAPPERS: dict[str, list[type[Wrapper]]] = {}
+ENV_WRAPPERS: dict[str, list[type[Wrapper]]] = {
+    "BinPack-v2": [FlattenActionSpaceWrapper],
+    "Tetris-v0": [FlattenActionSpaceWrapper],
+    "Minesweeper-v0": [FlattenActionSpaceWrapper],
+    "Sudoku-v0": [FlattenActionSpaceWrapper],
+    "Sudoku-very-easy-v0": [FlattenActionSpaceWrapper],
+    "FlatPack-v0": [FlattenActionSpaceWrapper],
+    "RubiksCube-v0": [FlattenActionSpaceWrapper],
+    "RubiksCube-partly-scrambled-v0": [FlattenActionSpaceWrapper],
+}
 
 AGENT_MIN_CONFIG = {
     "num_envs": 1,
@@ -47,13 +57,4 @@ KNOWN_FAILURES: dict[str, str] = {
 }
 
 # Skipped for some limatation in default configuration of algorithms
-SKIP_AGENT_ENVS: dict[str, str] = {
-    "BinPack-v2": "Action masking not supported due to actions being conditionally dependent",
-    "Tetris-v0": "Action masking not supported due to actions being conditionally dependent",
-    "Minesweeper-v0": "Action masking not supported due to actions being conditionally dependent",
-    "Sudoku-v0": "Action masking not supported due to actions being conditionally dependent",
-    "Sudoku-very-easy-v0": "Action masking not supported due to actions being conditionally dependent",
-    "FlatPack-v0": "Action masking not supported due to actions being conditionally dependent",
-    "RubiksCube-v0": "Heterogeous MultiDiscrete action space",
-    "RubiksCube-partly-scrambled-v0": "Heterogeous MultiDiscrete action space",
-}
+SKIP_AGENT_ENVS: dict[str, str] = {}
