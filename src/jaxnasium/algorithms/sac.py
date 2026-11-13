@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from functools import partial
 from typing import Any
 
 import distrax
@@ -21,7 +20,6 @@ from jaxnasium.algorithms.core import (
     TanhNormalLayer,
     Transition,
     TransitionBuffer,
-    scan_callback,
 )
 
 from .agent_networks import ActorNetwork, QValueNetwork
@@ -197,18 +195,14 @@ class SAC(RLAlgorithm["SACAgent"]):
         # Update the normalizer with the warmup data.
         agent = agent.update_normalizer(dummy_trajectory)
 
-        train_iteration_fn = partial(self.train_iteration, env=env)
-        train_iteration_fn = scan_callback(
-            func=train_iteration_fn,
-            callback_fn=self.log_function,
-            callback_interval=self.log_interval,
-            n=self.num_iterations,
-            reduce_ys_fn=self.reduce_metrics_fn,
-        )
+        def train_step(runner_state, iter):
+            runner_state, metrics = self.train_iteration(runner_state, iter, env=env)
+            self.run_callbacks(key, runner_state, metrics, iter)
+            return runner_state, self.reduce_metrics_fn(metrics)
 
         runner_state = (agent, buffer, *warmup_state)
         runner_state, metrics = jax.lax.scan(
-            train_iteration_fn, runner_state, jnp.arange(self.num_iterations)
+            train_step, runner_state, jnp.arange(self.num_iterations)
         )
         updated_agent = runner_state[0]
         return updated_agent, metrics
@@ -399,16 +393,17 @@ class SACAgent(RLAgent):
         return self.normalizer.normalize_reward(rewards)
 
     def _compute_soft_target(self, action_dist, q, action_log_prob=None):
-        min_q = q.min(axis=0)
         if _is_categorical_distribution(action_dist):
+            # For discrete, we take a simple average over the ensamble (no min trick).
+            mean_q = q.mean(axis=0)
             # for wrapped in Independent:
             action_dist = getattr(action_dist, "distribution", action_dist)
             action_log_prob = jax.nn.log_softmax(action_dist.logits)
-            target = min_q - self.alpha() * action_log_prob
+            target = mean_q - self.alpha() * action_log_prob
             weighted_target = (action_dist.probs * target).sum(axis=-1)
             return weighted_target
         assert action_log_prob is not None
-        min_q = jym.tree.batch_mean(min_q)
+        min_q = jym.tree.batch_mean(q.min(axis=0))
         target = min_q - self.alpha() * action_log_prob
         return target
 

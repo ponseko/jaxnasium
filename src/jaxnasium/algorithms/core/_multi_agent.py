@@ -69,7 +69,7 @@ def _is_pytree_of_transitions(x):
     """Check if *x* is a pytree whose first-level leaves are all Transitions."""
     try:
         leaves, _ = eqx.tree_flatten_one_level(x)
-        return all(isinstance(leaf, Transition) for leaf in leaves)
+        return bool(leaves) and all(isinstance(leaf, Transition) for leaf in leaves)
     except Exception:
         return False
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass, field, fields, replace
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -30,6 +32,27 @@ def _log(*text: str) -> None:
         sys.stderr.flush()
     except Exception:
         pass
+
+
+def _run_info() -> dict[str, Any]:
+    """Where a run ran: the device, library versions, and the git commit of the working directory."""
+    try:
+        git = subprocess.run(
+            ["git", "describe", "--always", "--dirty"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        commit = git.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        commit = None
+    return {
+        "device": jax.devices()[0].device_kind,
+        "jax_version": jax.__version__,
+        "jaxnasium_version": jym.__version__,
+        "git_commit": commit,
+    }
 
 
 def _get_algorithm(algorithm: RLAlgorithm | str, hyperparameters: dict) -> RLAlgorithm:
@@ -99,9 +122,18 @@ class AlgorithmEvaluation:
             - `results.npy`: the evaluation results, shape (num_seeds, num_evaluations)
             - `train_curve.npy`: the training metrics, shape (num_seeds, num_iterations, ...)
             - `input_parameters.json`: the input parameters to the evaluation
-            - `full_parameters.json`: the full parameters used for the evaluation.
+            - `full_parameters.json`: the full parameters used for the evaluation, plus
+              `_run_info()` (device, library versions, git commit) and wall-clock seconds:
+              `compile_duration` (tracing and compiling), `run_duration` (training and
+              evaluating all seeds) and `total_duration` (both, plus setup).
         `save_as_zip`: If True, while save_path is not None, will zip the results folder
             and write it to `save_path`.
+        `evaluate_interval`: Also does an evaluation call every fraction of training
+            iterations. Defaults to `None`: only at the end. Saved as
+            `interval_results.npz` with the `iteration` and `timesteps` of each evaluation
+            and the `evaluation` returns, shape (num_seeds, num_intervals, num_evaluations).
+        `save_agent`: Also save the trained agent of every seed, as
+            `agent_<seed index>.jaxon`.
 
     **Example**:
     ```python
@@ -132,6 +164,8 @@ class AlgorithmEvaluation:
     return_train_metrics: bool = False
     save_path: str | Path | None = None
     save_as_zip: bool = False
+    evaluate_interval: float | None = None
+    save_agent: bool = False
     _labels: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def with_labels(self, labels: dict[str, Any]) -> AlgorithmEvaluation:
@@ -180,6 +214,20 @@ class AlgorithmEvaluation:
         several seeds, every leaf gains a leading axis over them.
         """
         config = self._create_config(kwargs)
+        algorithm, interval_evaluations = config.algorithm, {}
+        if self.save_path is None and (self.evaluate_interval or self.save_agent):
+            raise ValueError("`evaluate_interval` and `save_agent` need a `save_path`.")
+        if self.evaluate_interval is not None:
+            from jaxnasium.algorithms.core import Callback
+
+            if algorithm.log_function is None:
+                raise ValueError(
+                    "`evaluate_interval` needs callbacks, which `log_function=None` "
+                    "disables (use `callbacks=()` instead)."
+                )
+            evaluate = partial(self._evaluate_interval, config, interval_evaluations)
+            callback = Callback(evaluate, self.evaluate_interval)
+            algorithm = replace(algorithm, callbacks=(*algorithm.callbacks, callback))
 
         def run(key: PRNGKeyArray) -> Any:
             _log("Running AlgorithmEvaluation")
@@ -189,16 +237,17 @@ class AlgorithmEvaluation:
                 _log(f"Evaluation environment: {config.eval_env_name}")
             _log(f"Hyperparameters: {config.hyperparameters}")
             train_key, eval_key = jax.random.split(key)
-            agent, train_metrics = config.algorithm.train(train_key, config.env)
+            agent, train_metrics = algorithm.train(train_key, config.env)
             evaluation = agent.evaluate(
                 eval_key,
                 config.eval_env,
                 num_eval_episodes=self.num_evaluations,
                 deterministic_policy=self.deterministic_policy,
             )
-            if not self.return_train_metrics:
-                return evaluation
-            return {"evaluation": evaluation, "train_metrics": train_metrics}
+            result = evaluation
+            if self.return_train_metrics:
+                result = {"evaluation": evaluation, "train_metrics": train_metrics}
+            return (result, agent) if self.save_agent else result
 
         start_time = time.time()
         if config.seed.ndim == 0:
@@ -217,14 +266,85 @@ class AlgorithmEvaluation:
             run_batch.__name__ = f"AlgorithmEvaluation:batched[{actual_batch_size}]"
             fn = jym.precompile(run_batch, config.seed)
 
-        result = fn()
+        run_start_time = time.time()
+        result, agent = fn() if self.save_agent else (fn(), None)
 
         if self.save_path is not None:
             result = jax.block_until_ready(result)
-            self._save(config, result, time.time() - start_time)
+            durations = {
+                "compile_duration": fn.compile_secs,
+                "run_duration": time.time() - run_start_time,
+                "total_duration": time.time() - start_time,
+            }
+            agents = ()
+            if self.save_agent:
+                if config.seed.ndim:
+                    num_seeds = config.seed.shape[0]
+                    agents = [
+                        jax.tree.map(lambda x, i=i: x[i], agent)
+                        for i in range(num_seeds)
+                    ]
+                else:
+                    agents = [agent]
+                agents = tuple(
+                    a.with_hyperparams(callbacks=config.algorithm.callbacks)  # type: ignore
+                    for a in agents
+                )
+            interval_results = None
+            if self.evaluate_interval is not None:
+                jax.effects_barrier()  # every interval evaluation has been collected
+                interval_results = self._interval_results(config, interval_evaluations)
+            self._save(config, result, durations, agents, interval_results)
         return result
 
-    def _save(self, config: AlgorithmEvaluationConfig, result: Any, duration: float):
+    def _evaluate_interval(
+        self, config, evaluations, key, runner_state, metrics, iteration, num_iterations
+    ) -> None:
+        """Training callback: evaluates the agent, and collects the evaluation on the host
+        in `evaluations[iteration][train key]`. Skips the last iteration, as that is
+        evaluated at the end."""
+
+        def evaluate():
+            evaluation = runner_state[0].evaluate(
+                jax.random.fold_in(key, iteration),
+                config.eval_env,
+                num_eval_episodes=self.num_evaluations,
+                deterministic_policy=self.deterministic_policy,
+            )
+
+            def store(key_data, iteration, evaluation):
+                per_seed = evaluations.setdefault(int(iteration), {})
+                per_seed[np.asarray(key_data).tobytes()] = evaluation
+
+            jax.debug.callback(store, jax.random.key_data(key), iteration, evaluation)
+
+        jax.lax.cond(iteration < num_iterations, evaluate, lambda: None)
+
+    def _interval_results(self, config, evaluations) -> dict[str, Any]:
+        """The evaluations collected by `_evaluate_interval`, seeds first."""
+        # The train key of every seed, as split in `run`
+        train_keys = jax.vmap(lambda k: jax.random.split(k)[0])(config.seed.reshape(-1))
+        train_keys = np.asarray(jax.random.key_data(train_keys))
+        iterations = np.array(sorted(evaluations))
+        evaluation = np.stack(
+            [[evaluations[i][k.tobytes()] for i in iterations] for k in train_keys]
+        )
+        algorithm = config.algorithm
+        fraction = iterations / algorithm.num_iterations  # type: ignore
+        return {
+            "iteration": iterations,
+            "timesteps": np.round(fraction * algorithm.total_timesteps).astype(int),  # type: ignore
+            "evaluation": evaluation if config.seed.ndim else evaluation[0],
+        }
+
+    def _save(
+        self,
+        config: AlgorithmEvaluationConfig,
+        result: Any,
+        durations: dict[str, float],
+        agents: tuple[Any, ...] = (),
+        interval_results: dict[str, Any] | None = None,
+    ):
         """Write one configuration's results under `save_path`. see class docstring for the layout."""
         context = self._context(config)
         # hash of the context. Same runs in the same folder overwritten.
@@ -238,6 +358,10 @@ class AlgorithmEvaluation:
             run_dir.mkdir(parents=True, exist_ok=True)
             evaluation = result["evaluation"] if self.return_train_metrics else result
             np.save(run_dir / "results.npy", np.asarray(evaluation))
+            for i, agent in enumerate(agents):
+                agent.save(run_dir / f"agent_{i}.jaxon")
+            if interval_results is not None:
+                np.savez(run_dir / "interval_results.npz", **interval_results)
             if self.return_train_metrics:
                 metrics = result["train_metrics"]
                 if isinstance(metrics, jax.Array):
@@ -256,9 +380,8 @@ class AlgorithmEvaluation:
             # The arguments as given, and then everything they resolved to.
             inputs = {k: v for k, v in context.items() if k != "algorithm_parameters"}
             (run_dir / "input_parameters.json").write_text(json.dumps(inputs, indent=2))
-            (run_dir / "full_parameters.json").write_text(
-                json.dumps({**context, "duration": duration}, indent=2)
-            )
+            full = {**context, **durations, "run_info": _run_info()}
+            (run_dir / "full_parameters.json").write_text(json.dumps(full, indent=2))
 
         if self.save_as_zip:
             with tempfile.TemporaryDirectory() as tmp:
@@ -286,6 +409,11 @@ class AlgorithmEvaluation:
             "seed": _jsonify(jax.random.key_data(config.seed)),
             "num_evaluations": self.num_evaluations,
             "deterministic_policy": self.deterministic_policy,
+            **(
+                {"evaluate_interval": self.evaluate_interval}
+                if self.evaluate_interval
+                else {}
+            ),
             "input_parameters": _jsonify(input_parameters),
             # Every field of the algorithm, not just the ones that were swept.
             "algorithm_parameters": _jsonify(

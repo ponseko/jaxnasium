@@ -107,7 +107,9 @@ Every id can also be given with an explicit provider prefix (e.g. `gymnax:Breako
 which is useful when the same name exists in more than one library.
 
 By default, `make` applies the wrapper for the environment's library (translating it to the
-Jaxnasium API) and a [`LogWrapper`](Wrappers.md). Pass `wrappers=[...]` to control this.
+Jaxnasium API) and a [`LogWrapper`](Wrappers.md). Pass `wrappers=[...]` to control this;
+`...` in that list stands for the defaults, so `wrappers=[..., FlattenObservationWrapper]`
+adds a wrapper on top of them.
 
 ::: jaxnasium._registry.Registry
 options:

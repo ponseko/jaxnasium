@@ -11,6 +11,16 @@ wheels/
 # Virtual environments
 .venv
 
+.jit-cache/
+
+# misc files on root
+/*.md
+/*.py
+/*.slurm
+/*.ipynb
+/*.sh
+/*.txt
+
 # Jupyter Notebook checkpoints
 **/.ipynb_checkpoints
 

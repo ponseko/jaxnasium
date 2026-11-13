@@ -190,6 +190,39 @@ def test_flatten_action_space_wrapper(name: str):
     assert jnp.all(jnp.isfinite(jnp.asarray(jax.tree.leaves(timestep.reward))))
 
 
+def test_flatten_action_space_wrapper_masks():
+    from jaxnasium.wrappers._wrappers import _to_single_discrete_mask as flatten
+
+    # flat actions decode with the first dimension fastest:
+    # (0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)
+    space = MultiDiscrete(np.array([3, 2]))
+    joint = np.array([[1, 0], [1, 1], [0, 1]])  # shape nvec
+    per_dim = np.array([[1, 0, 1], [0, 1, 0]])  # one (padded) row per dimension
+    assert flatten(space, joint).tolist() == [1, 1, 0, 0, 1, 1]
+    assert flatten(space, per_dim).tolist() == [0, 0, 0, 1, 0, 1]
+
+    # earlier leaves decode fastest; valid only where both leaves are
+    tree_space = {"a": Discrete(2), "b": space}
+    expected = [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0]
+    assert flatten(tree_space, {"a": np.array([1, 0]), "b": joint}).tolist() == expected
+
+
+def test_flatten_action_space_wrapper_joint_mask_env():
+    joint_mask_obs = lambda: jym.AgentObservation(
+        observation=Box(-1.0, 1.0, (6,)),
+        action_mask=Box(np.zeros((4, 10), bool), np.ones((4, 10), bool), (4, 10), bool),
+    )
+    env = make_proxy_env(joint_mask_obs, lambda: MultiDiscrete(np.array([4, 10])))
+    wrapped = jym.FlattenActionSpaceWrapper(env)
+
+    assert wrapped.action_space.n == 40
+    assert wrapped.observation_space.action_mask.shape == (40,)  # type: ignore
+    obs, _, timestep = _run_single_reset_step(wrapped)
+    assert obs.action_mask.shape == (40,)
+    assert timestep.observation.action_mask.shape == (40,)  # type: ignore
+    assert timestep.info["received_action"].shape == (2,)
+
+
 def test_scale_reward_wrapper():
     base_env = _make_base_env()
     scale = 0.25
@@ -302,6 +335,43 @@ def test_normalize_vec_reward_wrapper():
     assert not jnp.allclose(norm_timestep.reward, raw_rewards)
 
 
+def test_transform_action_wrapper():
+    base_env = make_proxy_env(obs_box_vector, lambda: Box(-2.0, 2.0, (3,), jnp.float32))
+    env = jym.TransformActionWrapper(
+        base_env,
+        lambda a: 2 * a,
+        lambda s: Box(s.low / 2, s.high / 2, s.shape, s.dtype),
+    )
+    assert env.action_space == Box(-1.0, 1.0, (3,), jnp.float32)
+
+    _, state = env.reset(SEED)
+    action = jnp.array([-1.0, 0.0, 0.5])
+    timestep, _ = env.step(SEED, state, action)
+    assert jnp.array_equal(timestep.info["received_action"], 2 * action)
+
+
+def test_clip_action_wrapper():
+    action_space = {
+        "steer": Box(low=-2.0, high=5.0, shape=(), dtype=jnp.float32),
+        "thrust": Box(low=-1.0, high=1.0, shape=(3,), dtype=jnp.float32),
+        "gear": Discrete(3),
+    }
+    env = jym.ClipActionWrapper(make_proxy_env(obs_box_vector, lambda: action_space))
+    assert env.action_space == action_space
+
+    _, state = env.reset(SEED)
+    action = {
+        "steer": jnp.array(9.0),
+        "thrust": jnp.array([-3.0, 0.5, 3.0]),
+        "gear": jnp.array(2),
+    }
+    timestep, _ = env.step(SEED, state, action)
+    received = timestep.info["received_action"]
+    assert received["steer"] == 5.0
+    assert jnp.array_equal(received["thrust"], jnp.array([-1.0, 0.5, 1.0]))
+    assert received["gear"] == 2  # non-Box actions are not clipped
+
+
 def test_discrete_action_wrapper():
     num_actions = 11
     base_env = make_proxy_env(
@@ -372,10 +442,10 @@ def test_discrete_action_wrapper_pytree_continuous():
     base_env = make_proxy_env(obs_box_vector, lambda: action_space)
     env = jym.DiscreteActionWrapper(base_env, num_actions=num_actions)
 
-    assert isinstance(env.action_space["steer"], Discrete)
-    assert env.action_space["steer"].n == num_actions
-    assert isinstance(env.action_space["thrust"], MultiDiscrete)
-    assert jnp.array_equal(env.action_space["thrust"].nvec, np.array([num_actions] * 3))
+    assert isinstance(env.action_space["steer"], Discrete)  # type: ignore[attr-defined]
+    assert env.action_space["steer"].n == num_actions  # type: ignore[attr-defined]
+    assert isinstance(env.action_space["thrust"], MultiDiscrete)  # type: ignore[attr-defined]
+    assert jnp.array_equal(env.action_space["thrust"].nvec, np.array([num_actions] * 3))  # type: ignore[attr-defined]
 
     discrete_action = jym.tree.mul(
         jym.tree.ones_like(env.sample_action(SEED)), num_actions // 2

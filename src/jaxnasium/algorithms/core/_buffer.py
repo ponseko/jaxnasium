@@ -230,6 +230,10 @@ class TransitionBuffer(eqx.Module):
 
             truncated_tree = _map_transitions(lambda t: t.truncated, self.data)
             truncated = jnp.any(jym.tree.stack(truncated_tree), axis=0)
+            # Do keep transitions that are truncated AND terminated (e.g. one-step transitions)
+            # since they are terminated, they should not be bootstrapped from anyway.
+            terminated_tree = _map_transitions(lambda t: t.terminated, self.data)
+            truncated = truncated & ~jnp.all(jym.tree.stack(terminated_tree), axis=0)
             if truncated.ndim == 1:  # single agent case
                 truncated = truncated[:, None]
 

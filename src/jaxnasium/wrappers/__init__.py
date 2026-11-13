@@ -14,6 +14,7 @@ from ._util import (
     partition_obs_and_masks as partition_obs_and_masks,
 )
 from ._wrappers import (
+    ClipActionWrapper as ClipActionWrapper,
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
@@ -24,6 +25,7 @@ from ._wrappers import (
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
+    TransformActionWrapper as TransformActionWrapper,
     TransformObservationWrapper as TransformObservationWrapper,
     TransformRewardWrapper as TransformRewardWrapper,
     VecEnvWrapper as VecEnvWrapper,
