@@ -271,7 +271,7 @@ class LogWrapper(Wrapper):
         info = timestep.info
         info["returned_episode_returns"] = state.returned_episode_returns
         info["returned_episode_lengths"] = state.returned_episode_lengths
-        info["timestep"] = state.timestep
+        info["timestep"] = jnp.full(jnp.shape(done), state.timestep)
         info["returned_episode"] = done
         return timestep._replace(info=info), state
 
