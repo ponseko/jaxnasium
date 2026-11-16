@@ -62,6 +62,7 @@
 - `brax:inverted_double_pendulum`
 - `brax:pusher`
 - `brax:reacher`
+- `brax:swimmer`
 - `brax:walker2d`
 - `crax:safe_button_point`
 - `crax:safe_circle_point`
@@ -346,7 +347,9 @@
 - `playground:AlohaSinglePegInsertion`
 - `playground:PandaPickCube`
 - `playground:PandaPickCubeOrientation`
+- `playground:PandaPickCubeCartesian`
 - `playground:PandaOpenCabinet`
+- `playground:PandaRobotiqPushCube`
 - `playground:LeapCubeReorient`
 - `playground:LeapCubeRotateZAxis`
 - `playground:AeroCubeRotateZAxis`

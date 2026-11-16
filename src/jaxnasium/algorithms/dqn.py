@@ -19,7 +19,6 @@ from jaxnasium.algorithms.core import (
     Schedule,
     Transition,
     TransitionBuffer,
-    scan_callback,
 )
 
 from .agent_networks import QValueNetwork
@@ -126,18 +125,14 @@ class DQN(RLAlgorithm["DQNAgent"]):
         # Update the normalizer with the warmup data.
         agent = agent.update_normalizer(dummy_trajectory)
 
-        train_iteration_fn = partial(self.train_iteration, env=env)
-        train_iteration_fn = scan_callback(
-            func=train_iteration_fn,
-            callback_fn=self.log_function,
-            callback_interval=self.log_interval,
-            n=self.num_iterations,
-            reduce_ys_fn=self.reduce_metrics_fn,
-        )
+        def train_step(runner_state, iter):
+            runner_state, metrics = self.train_iteration(runner_state, iter, env=env)
+            self.run_callbacks(key, runner_state, metrics, iter)
+            return runner_state, self.reduce_metrics_fn(metrics)
 
         runner_state = (agent, buffer, *warmup_state)
         runner_state, metrics = jax.lax.scan(
-            train_iteration_fn, runner_state, jnp.arange(self.num_iterations)
+            train_step, runner_state, jnp.arange(self.num_iterations)
         )
         updated_agent = runner_state[0]
         return updated_agent, metrics

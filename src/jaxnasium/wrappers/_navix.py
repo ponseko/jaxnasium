@@ -21,6 +21,11 @@ class _ByIdentity:
     def __init__(self, obj: Any):
         self.obj = obj
 
+    @property
+    def _env(self) -> Any:
+        """Passing through the env object"""
+        return self.obj
+
     def __getattr__(self, name: str) -> Any:
         if name == "obj":  # not yet set, e.g. during unpickling
             raise AttributeError(name)

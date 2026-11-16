@@ -1,6 +1,6 @@
 import functools
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import equinox as eqx
 import jax
@@ -9,6 +9,32 @@ import numpy as np
 from jaxtyping import Array, Float, PyTree
 
 _LOGWRAPPER_REQ_KEYS = ("returned_episode", "returned_episode_returns", "timestep")
+
+
+class Callback(NamedTuple):
+    """Simple (optional) callback container that calls
+    `fn(key, runner_state, metrics, iteration, num_iterations)` every `interval`.
+    `interval` is a fixed number of iterations, or a fraction of
+    `num_iterations` when below 1."""
+
+    fn: Callable
+    interval: int | float = 0.05
+
+    def __call__(self, key, runner_state, metrics, iteration, num_iterations) -> None:
+        interval = self.interval
+        if interval < 1:
+            assert num_iterations is not None, (
+                "a fractional interval needs num_iterations"
+            )
+            interval = max(1, int(num_iterations * interval))
+        call = iteration % interval == 0
+        if num_iterations is not None:
+            call = call | (iteration == num_iterations)
+        jax.lax.cond(
+            call,
+            lambda: self.fn(key, runner_state, metrics, iteration, num_iterations),
+            lambda: None,
+        )
 
 
 def mean_episode_returns(metrics: dict[str, Any]) -> PyTree[Float[Array, ""]]:
@@ -34,60 +60,17 @@ def mean_episode_returns(metrics: dict[str, Any]) -> PyTree[Float[Array, ""]]:
     return jax.tree.map(_mean, metrics["returned_episode_returns"])
 
 
-def scan_callback(
-    func: Callable | None = None,
-    callback_fn: Callable | Literal["tqdm", "simple"] | None = None,
-    callback_interval: float = 20,
-    n: int | None = None,
-    reduce_ys_fn: Callable | Literal["mean"] | None = None,
-) -> Callable:
-    """Wrap a scan body so its per-iteration metrics can be logged and shrunk.
+def print_returns(key, runner_state, metrics, iteration, num_iterations) -> None:
+    """Callback printing the return of every episode finished in this iteration.
+    Requires a `LogWrapper` on the environment."""
+    missing = [key for key in _LOGWRAPPER_REQ_KEYS if key not in metrics]
+    if missing:
+        raise ValueError(
+            f"Missing keys {missing} in the training metrics. "
+            "Is the environment wrapped with LogWrapper?"
+        )
 
-    **Arguments**:
-        `func`: function to wrap
-        `callback_fn`: function to call on the ys of the scan
-        `callback_interval`: how often to call the callback in iterations. Can be a fraction of `n`.
-        `n`: total number of iterations, required if `callback_interval` 0.0 < 1.0.
-        `reduce_ys_fn`: optional function to reduce the metrics *after* the callback is called,
-            but before they are returned to the scan. May be used to aggregate metrics to reduce
-            memory consumption. Set this to `mean` (default) to average `LogWrapper` returned
-            returned returns across the current iteration of data.
-    """
-    assert callable(func) or func is None
-
-    assert callback_interval > 0, "callback_interval must be greater than 0"
-    if callback_interval < 1:
-        assert n is not None, "n must be provided if callback_interval is less than 1"
-        callback_interval = int(n * callback_interval)
-
-    if callback_fn == "tqdm":
-        try:
-            import tqdm.auto
-        except ImportError:
-            raise ImportError(
-                "tqdm is not installed. Please install it with `pip install tqdm`."
-            )
-
-        progress_bar = []
-
-        def update_tqdm_bar(_, iteration):
-            if iteration == 0:
-                progress_bar.append(
-                    tqdm.auto.tqdm(
-                        total=n, desc="Training Progress", unit=" iterations "
-                    )
-                )
-
-            progress_bar[0].update(callback_interval)
-
-    def simple_reward_logger(data, iteration):
-        missing = [key for key in _LOGWRAPPER_REQ_KEYS if key not in data]
-        if missing:
-            raise ValueError(
-                f"Missing keys {missing} in the training metrics. "
-                "Is the environment wrapped with LogWrapper?"
-            )
-
+    def print_on_host(data):
         returned_episode = np.asarray(data["returned_episode"])
         # tree.map for multi-agent cases
         returned_episode_returns = jax.tree.map(
@@ -110,24 +93,56 @@ def scan_callback(
             return_values_t = jax.tree.map(lambda x: round(x, 3), return_values_t)
             print(f"global step={timesteps[t]}, episodic return={return_values_t}")
 
-    def maybe_log(iteration: int, data):
-        if callback_fn is not None and callback_interval > 0:
-            if callback_fn == "tqdm":
-                log_fn = update_tqdm_bar
-            elif callback_fn == "simple":
-                log_fn = simple_reward_logger
-            else:
-                log_fn = callback_fn
+    jax.debug.callback(print_on_host, {k: metrics[k] for k in _LOGWRAPPER_REQ_KEYS})
 
-            _ = jax.lax.cond(
-                iteration % callback_interval == 0,
-                lambda: jax.debug.callback(
-                    lambda d, i: log_fn(d, i) if callable(log_fn) else None,
-                    data,
-                    iteration,
-                ),
-                lambda: None,
-            )
+
+def progress_bar(key, runner_state, metrics, iteration, num_iterations) -> None:
+    """Callback showing the training progress in a `tqdm` progress bar."""
+    try:
+        import tqdm.auto
+    except ImportError:
+        raise ImportError("tqdm is not installed. Install it with `pip install tqdm`.")
+    bar = []  # the bar of the training run in progress
+
+    def update_on_host(iteration):
+        iteration = int(iteration)
+        if not bar or iteration < bar[0].n:  # a new run
+            bar[:] = [
+                tqdm.auto.tqdm(
+                    total=num_iterations, desc="Training", unit=" iterations"
+                )
+            ]
+        bar[0].update(iteration - bar[0].n)
+        if iteration == num_iterations:
+            bar[0].refresh()  # tqdm skips draws that come too fast
+
+    jax.debug.callback(update_on_host, iteration)
+
+
+def scan_callback(
+    func: Callable | None = None,
+    callback_fn: Callable | Literal["tqdm", "simple"] | None = None,
+    callback_interval: float = 20,
+    n: int | None = None,
+    reduce_ys_fn: Callable | Literal["mean"] | None = None,
+) -> Callable:
+    """Wrap a scan body so its per-iteration metrics can be logged and shrunk.
+
+    **Arguments**:
+        `func`: function to wrap
+        `callback_fn`: function to call on the ys of the scan
+        `callback_interval`: how often to call the callback in iterations. Can be a fraction of `n`.
+        `n`: total number of iterations, required if `callback_interval` 0.0 < 1.0.
+        `reduce_ys_fn`: optional function to reduce the metrics *after* the callback is called,
+            but before they are returned to the scan. May be used to aggregate metrics to reduce
+            memory consumption. Set this to `mean` (default) to average `LogWrapper` returned
+            returned returns across the current iteration of data.
+    """
+    assert callable(func) or func is None
+
+    assert callback_interval > 0, "callback_interval must be greater than 0"
+
+    callbacks = _legacy_callback(callback_fn, callback_interval)
 
     def _scan_callback(func):
         @functools.wraps(func)
@@ -138,7 +153,9 @@ def scan_callback(
                 iter_num = x
 
             carry, this_iter_metrics = func(carry, x)
-            maybe_log(iter_num, this_iter_metrics)
+
+            for callback in callbacks:
+                callback(None, None, this_iter_metrics, iter_num + 1, n)
 
             if reduce_ys_fn is not None:
                 reduce_fn = (
@@ -194,3 +211,22 @@ def pretty_print_network(network: eqx.Module):
     print("\n")
     print(f"Total parameters: {_count_parameters(network):,}")
     print("=" * 100)
+
+
+def _legacy_callback(
+    callback_fn: Callable | Literal["tqdm", "simple", "unset"] | None,
+    callback_interval: float | Literal["unset"],
+) -> tuple[Callback, ...]:
+    """A `log_function` and `log_interval` as a `Callback` (none if not set)."""
+    if callback_fn is None or callback_fn == "unset":
+        return ()
+    if callback_fn == "simple":
+        fn = print_returns
+    elif callback_fn == "tqdm":
+        fn = progress_bar
+    else:  # a host function of the metrics and iteration
+
+        def fn(key, runner_state, metrics, iteration, num_iterations):
+            jax.debug.callback(callback_fn, metrics, iteration)
+
+    return (Callback(fn, callback_interval),)  # type: ignore

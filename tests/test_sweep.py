@@ -596,7 +596,7 @@ def test_save_path_writes_the_four_files(tmp_path):
     full = json.loads((run_dir / "full_parameters.json").read_text())
     assert "algorithm_parameters" not in inputs  # the small one, for scanning
     assert full["algorithm_parameters"]["num_envs"] == 1
-    assert full["duration"] > 0
+    assert full["total_duration"] > 0
 
 
 def test_save_as_zip_writes_a_zip_instead_of_a_folder(tmp_path):

@@ -86,21 +86,13 @@ def _unmarshal(type_info: str, marshaled: Any):
 
 def save_agent(file_path: str, agent: Any) -> None:
     """Writes `agent` -- parameters, optimizer state and trainer -- to `file_path` using `jaxon`."""
-    try:
-        import jaxon
-    except ImportError as e:
-        raise ImportError(
-            "Agent checkpointing requires `jaxon`. Install it with `pip install jaxon`."
-        ) from e
+    import jaxon
+
     jaxon.save(file_path, agent, custom_marshalers=[_marshal])
 
 
 def load_agent(file_path: str) -> Any:
     """Reads a checkpoint written by `save_agent` using `jaxon`."""
-    try:
-        import jaxon
-    except ImportError as e:
-        raise ImportError(
-            "Agent checkpointing requires `jaxon`. Install it with `pip install jaxon`."
-        ) from e
+    import jaxon
+
     return jaxon.load(file_path, custom_unmarshalers=[_unmarshal])

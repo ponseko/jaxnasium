@@ -187,7 +187,7 @@ class Transition(eqx.Module):
         structure = self.structure
 
         # ---- single-agent: plain scan ----------------------------------------
-        if structure.num_leaves <= 1:
+        if structure == jax.tree.structure(0):  # (a dict of one agent is multi-agent)
             return jax.lax.scan(
                 fn, init, self, reverse=reverse, unroll=unroll, **scan_kwargs
             )

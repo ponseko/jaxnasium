@@ -21,6 +21,7 @@ from ._spaces import (
 )
 from ._types import AgentObservation as AgentObservation
 from .wrappers import (
+    ClipActionWrapper as ClipActionWrapper,
     DiscreteActionWrapper as DiscreteActionWrapper,
     FlattenActionSpaceWrapper as FlattenActionSpaceWrapper,
     FlattenObservationWrapper as FlattenObservationWrapper,
@@ -31,6 +32,7 @@ from .wrappers import (
     NormalizeVecRewardWrapper as NormalizeVecRewardWrapper,
     ScaleRewardWrapper as ScaleRewardWrapper,
     StackActionSpaceWrapper as StackActionSpaceWrapper,
+    TransformActionWrapper as TransformActionWrapper,
     TransformObservationWrapper as TransformObservationWrapper,
     TransformRewardWrapper as TransformRewardWrapper,
     VecEnvWrapper as VecEnvWrapper,

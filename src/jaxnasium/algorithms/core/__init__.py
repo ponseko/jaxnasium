@@ -22,8 +22,11 @@ from ._input_output import (
     TanhNormalLayer as TanhNormalLayer,
 )
 from ._logging import (
+    Callback as Callback,
     mean_episode_returns as mean_episode_returns,
     pretty_print_network as pretty_print_network,
+    print_returns as print_returns,
+    progress_bar as progress_bar,
     scan_callback as scan_callback,
 )
 from ._multi_agent import MultiAgentWrapper as MultiAgentWrapper

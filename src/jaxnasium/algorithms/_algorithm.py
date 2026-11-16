@@ -5,7 +5,8 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Any, Generic, Literal, Self
+from types import EllipsisType
+from typing import Any, Generic, Literal, Self, cast
 
 import equinox as eqx
 import jax
@@ -23,11 +24,23 @@ from jaxnasium import (
     is_wrapped,
     unwrap_to,
 )
+from jaxnasium.algorithms.core._logging import (
+    Callback,
+    _legacy_callback,
+    mean_episode_returns,
+    print_returns,
+)
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_CALLBACKS = (Callback(print_returns),)
 
-TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent")
+
+def _identity(metrics):
+    return metrics
+
+
+TAgent = TypeVar("TAgent", bound="RLAgent", default="RLAgent", covariant=True)
 
 
 class RLAlgorithm(eqx.Module, Generic[TAgent]):
@@ -54,23 +67,35 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
             override `init_agent` instead.
         multi_agent: Whether this algorithm instance operates in multi-agent mode
         auto_upgrade_multi_agent: Whether to automatically upgrade single-agent methods to multi-agent
-        log_function: Logging function to use ("simple", "tqdm", or custom callable)
-        log_interval: Interval for logging (as fraction of total steps or absolute number)
-        reduce_metrics_fn: Reduces one training iteration's metrics to what `train`
-            returns alongside the agent. This function is called *after* log function on the
-            batch of iteration metrics. Defaults to `"mean"`, averaging the metrics across
-            the iteration. Set to `None` to return the full batch of metrics.
+        callbacks: Functions called after every training iteration as
+            `fn(key, runner_state, metrics, iteration, num_iterations)`. Wrap one in a `Callback`
+            to only call it every so many iterations. Defaults to printing the episode
+            returns every 5% of training; set to `()` for no logging. `...` stands for
+            the defaults, e.g. `callbacks=(..., my_callback)`.
+        reduce_metrics_fn: Applied after every training iteration to the returned metrics.
+            maps that iteration's metrics to what `train` returns besides the trained agent.
+            Defaults to `mean_episode_returns`, the mean return of the episodes
+            finished in the iteration. Set to `None` to return the full metrics.
+
+        log_function: Deprecated, use `callbacks`. Logging function to use ("simple", "tqdm", or custom callable)
+        log_interval: Deprecated, use `callbacks`. Interval for logging (as fraction of total steps or absolute number)
     """
 
     multi_agent: bool = eqx.field(static=True, default=False, kw_only=True)
     auto_upgrade_multi_agent: bool = eqx.field(static=True, default=True, kw_only=True)
-    log_function: Callable | Literal["simple", "tqdm"] | None = eqx.field(
-        static=True, default="simple", kw_only=True
+    log_function: Callable | Literal["simple", "tqdm", "unset"] | None = eqx.field(
+        static=True, default="unset", kw_only=True
     )
-    log_interval: int | float = eqx.field(static=True, default=0.05, kw_only=True)
-    reduce_metrics_fn: Callable | Literal["mean"] | None = eqx.field(
-        static=True, default="mean", kw_only=True
+    log_interval: int | float | Literal["unset"] = eqx.field(
+        static=True, default="unset", kw_only=True
     )
+    reduce_metrics_fn: Callable = eqx.field(
+        static=True, default=mean_episode_returns, kw_only=True
+    )
+    callbacks: tuple[Callable | EllipsisType, ...] = eqx.field(
+        static=True, default=_DEFAULT_CALLBACKS, kw_only=True
+    )
+
     agent_type: type[TAgent] | PyTree[type[TAgent]] | None = eqx.field(
         static=True, default=None, kw_only=True
     )
@@ -84,6 +109,49 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         `agent=None` builds a fresh agent; passing an existing agent continues training it.
         """
         ...
+
+    def __post_init__(self):
+        self.callbacks = tuple(
+            callback
+            for item in self.callbacks
+            for callback in (_DEFAULT_CALLBACKS if item is ... else (item,))
+        )
+        if self.reduce_metrics_fn == "mean":
+            self.reduce_metrics_fn = mean_episode_returns
+        elif self.reduce_metrics_fn is None:
+            self.reduce_metrics_fn = _identity
+
+    def __check_init__(self):
+        if self.log_function is None:
+            warnings.warn(
+                "`log_function` is deprecated, for now `log_function=None` disables all "
+                "`callbacks`, but the field will be removed in the future. Use `callbacks=()` instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+        elif self.log_function != "unset" or self.log_interval != "unset":
+            if "unset" in (self.log_function, self.log_interval):
+                raise ValueError(
+                    "`log_function` and `log_interval` are deprecated and only work "
+                    "together: use `callbacks` instead."
+                )
+            warnings.warn(
+                "`log_function` and `log_interval` are deprecated, use `callbacks` instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+
+    def run_callbacks(
+        self, key: PRNGKeyArray, runner_state: Any, metrics: Any, iteration: Array
+    ) -> None:
+        """Runs all `callbacks` in order."""
+        if self.log_function is None:  # the deprecated way to disable all callbacks
+            return
+        log_callback = _legacy_callback(self.log_function, self.log_interval)
+        callbacks = cast(tuple[Callable, ...], self.callbacks)  # expand `...`
+        num_iterations = self.num_iterations  # pyright: ignore[reportAttributeAccessIssue]
+        for callback in (*log_callback, *callbacks):
+            callback(key, runner_state, metrics, iteration + 1, num_iterations)
 
     @eqx.filter_jit
     def init_agent(self, key: PRNGKeyArray, env: Environment) -> TAgent:
@@ -109,14 +177,15 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         env: Environment,
         num_eval_episodes: int = 10,
         deterministic_policy: bool = True,
+        batch_size: int | None = None,
     ) -> Float[Array, " num_eval_episodes"]:
         """`num_eval_episodes` over the environment with the provided agent.
 
+        Episodes run `batch_size` at a time (via `jax.lax.map`), defaulting to the algorithm's `num_envs`.
+
         Can also be called through an agent via `agent.evaluate(key, env, ...)`.
         """
-        if is_wrapped(env, VecEnvWrapper):
-            # Cannot vectorize because terminations may occur at different times
-            # use jax.vmap(agent.evaluate) if you can ensure episodes are of equal length
+        if is_wrapped(env, VecEnvWrapper):  # We batch the while loop below instead
             env = unwrap_to(env, VecEnvWrapper)
         elif is_wrapped(env, "GymnasiumWrapper") and (
             getattr(env, "_internal_num_envs", None) is not None
@@ -126,7 +195,12 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
                 "environment without the `VectorEnv` wrapper for evaluation."
             )
 
-        def eval_episode(key, _) -> tuple[PRNGKeyArray, PyTree[float]]:
+        if batch_size is None:  # use num_envs
+            batch_size = getattr(self, "num_envs", None)
+        if is_wrapped(env, "GymnasiumWrapper"):
+            batch_size = None  # a single CPU environment behind a callback
+
+        def eval_episode(key: PRNGKeyArray) -> PyTree[float]:
             def step_env(carry):
                 episode_reward, rng, obs, env_state, done = carry
                 rng, action_key, step_key = jax.random.split(rng, 3)
@@ -153,19 +227,15 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
             )
             episode_reward = jym.tree.zeros_like(reward_structure, dtype=float)
 
-            episode_reward, key, obs, env_state, done = jax.lax.while_loop(
+            episode_reward, *_ = jax.lax.while_loop(
                 lambda carry: jnp.logical_not(carry[-1]),
                 step_env,
                 (episode_reward, key, obs, env_state, done),
             )
+            return episode_reward
 
-            return key, episode_reward
-
-        _, episode_rewards = jax.lax.scan(
-            eval_episode, key, jnp.arange(num_eval_episodes)
-        )
-
-        return episode_rewards
+        keys = jax.random.split(key, num_eval_episodes)
+        return jax.lax.map(eval_episode, keys, batch_size=batch_size)
 
     def __check_env__(self, env: Environment, vectorized: bool = False) -> Environment:
         """
@@ -221,11 +291,12 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
                 "as it allows for easier checkpointing and resuming training."
             )
         if not is_wrapped(env, LogWrapper) and (
-            self.reduce_metrics_fn == "mean" or self.log_function == "simple"
+            self.reduce_metrics_fn is mean_episode_returns
+            or any(getattr(c, "fn", c) is print_returns for c in self.callbacks)
         ):
             logger.warning(
                 f"Adding a `LogWrapper` to the environment, as {type(self).__name__} has "
-                "set 'reduce_metrics_fn=mean' or 'log_function=simple', which require "
+                "set 'reduce_metrics_fn=mean_episode_returns' or prints returns, which require "
                 "episode statistics from a `LogWrapper`."
             )
             if is_wrapped(env, VecEnvWrapper):
@@ -257,7 +328,7 @@ class RLAlgorithm(eqx.Module, Generic[TAgent]):
         """Convenience method for `RLAgent.load(file_path)`.
 
         Returns the algorithm stored in `file_path` which was saved with `save`
-        on an `RLAgent`, trainer included. Requires `jaxon` to be installed, which is not installed by default.
+        on an `RLAgent`, trainer included.
         """
         return RLAgent.load(file_path)
 
@@ -337,15 +408,21 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
         env: Environment,
         num_eval_episodes: int = 10,
         deterministic_policy: bool = True,
+        batch_size: int | None = None,
     ) -> Float[Array, " num_eval_episodes"]:
         return self.trainer.evaluate(
-            key, self, env, num_eval_episodes, deterministic_policy=deterministic_policy
+            key,
+            self,
+            env,
+            num_eval_episodes,
+            deterministic_policy=deterministic_policy,
+            batch_size=batch_size,
         )
 
     @collective
     def save(self, file_path: str):
         """Save the current state (along with the trainer) to `file_path`. This uses `jaxon`
-        internally to save the agent. `jaxon` is not installed by default, so must be installed manually.
+        internally to save the agent.
 
         Alternatively, serialization can be done like any other eqx.Module as described here:
         https://docs.kidger.site/equinox/examples/serialisation/
@@ -357,9 +434,7 @@ class RLAgent(eqx.Module, metaclass=HackuinoxModule):
     @classmethod
     @collective
     def load(cls, file_path: str) -> Self:
-        """Returns the agent stored in `file_path` which was saved with `save`, trainer included.
-        Requires `jaxon` to be installed, which is not installed by default.
-        """
+        """Returns the agent stored in `file_path` which was saved with `save`, trainer included."""
         from jaxnasium.algorithms.core import load_agent
 
         return load_agent(file_path)

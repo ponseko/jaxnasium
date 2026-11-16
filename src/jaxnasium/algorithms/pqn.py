@@ -21,7 +21,6 @@ from jaxnasium.algorithms.core import (
     Normalizer,
     Schedule,
     Transition,
-    scan_callback,
     scan_minibatch_epoch,
 )
 
@@ -40,7 +39,7 @@ class PQN(RLAlgorithm["PQNAgent"]):
     learning_rate_end: float | None = eqx.field(static=True, default=None)
     epsilon_start: float = 1.0
     epsilon_end: float | None = eqx.field(static=True, default=0.05)
-    exploration_fraction: float = eqx.field(static=True, default=0.5)
+    exploration_fraction: float = eqx.field(static=True, default=0.3)
     """ Fraction of `total_timesteps` over which epsilon anneals from start to end. """
     gamma: float = 0.99
     max_grad_norm: float | None = 10.0
@@ -48,8 +47,8 @@ class PQN(RLAlgorithm["PQNAgent"]):
 
     total_timesteps: int = eqx.field(static=True, default=int(1e6))
     num_envs: int = eqx.field(static=True, default=12)
-    num_steps: int = eqx.field(static=True, default=128)  # steps per environment
-    num_minibatches: int = eqx.field(static=True, default=4)  # Number of mini-batches
+    num_steps: int = eqx.field(static=True, default=32)  # steps per environment
+    num_minibatches: int = eqx.field(static=True, default=16)  # Number of mini-batches
     num_epochs: int = eqx.field(static=True, default=4)  # K epochs
     warmup_steps: int = eqx.field(static=True, default=5_000)
     """Normalizer statistics warmup steps."""
@@ -115,15 +114,6 @@ class PQN(RLAlgorithm["PQNAgent"]):
         if agent is None:
             agent = self.init_agent(key, env)
 
-        train_iteration_fn = partial(self.train_iteration, env=env)
-        train_iteration_fn = scan_callback(
-            func=train_iteration_fn,
-            callback_fn=self.log_function,
-            callback_interval=self.log_interval,
-            n=self.num_iterations,
-            reduce_ys_fn=self.reduce_metrics_fn,
-        )
-
         obsv, env_state = env.reset(jax.random.split(key, self.num_envs))
         warmup_length = max(1, self.warmup_steps // self.num_envs)
         warmup_state, warmup_trajectory = self._collect_rollout(
@@ -131,9 +121,14 @@ class PQN(RLAlgorithm["PQNAgent"]):
         )
         agent = agent.update_normalizer(warmup_trajectory)
 
+        def train_step(runner_state, iter):
+            runner_state, metrics = self.train_iteration(runner_state, iter, env=env)
+            self.run_callbacks(key, runner_state, metrics, iter)
+            return runner_state, self.reduce_metrics_fn(metrics)
+
         runner_state = (agent, *warmup_state)
         runner_state, metrics = jax.lax.scan(
-            train_iteration_fn, runner_state, jnp.arange(self.num_iterations)
+            train_step, runner_state, jnp.arange(self.num_iterations)
         )
         updated_agent = runner_state[0]
         return updated_agent, metrics

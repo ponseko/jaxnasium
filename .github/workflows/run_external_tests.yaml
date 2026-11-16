@@ -19,7 +19,7 @@ jobs:
         # Registry suites run their part of tests/test_registry_envs_external.py (-k suite/)
         include:
           - { suite: brax, install: --extra brax }
-          - { suite: crax, install: --group ext-crax }
+          - { suite: crax, install: --extra crax }
           - { suite: factoriax, install: --extra factoriax }
           - { suite: gymnax, install: --extra gymnax }
           - { suite: jaxmarl, install: --extra jaxmarl }

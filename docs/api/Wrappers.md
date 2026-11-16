@@ -34,6 +34,10 @@ env = jym.LogWrapper(env)
 
 ::: jaxnasium.ScaleRewardWrapper
 
+::: jaxnasium.TransformActionWrapper
+
+::: jaxnasium.ClipActionWrapper
+
 ::: jaxnasium.DiscreteActionWrapper
 
 ::: jaxnasium.FlattenActionSpaceWrapper

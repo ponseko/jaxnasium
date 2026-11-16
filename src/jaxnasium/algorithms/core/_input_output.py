@@ -48,8 +48,7 @@ def _assert_homogeneous_output_space(num_outputs: list[int]):
         f" (all nvec elements must be the same, got {num_outputs}) "
         "For heterogeneous spaces, use a composite of spaces instead. "
         "(E.g. {'action1': (Discrete(n), 'action2': Discrete(m), ...}) "
-        "This can be done through `jym.MultiDiscreteToListDiscreteWrapper` "
-        "or by flattening the action space using `jym.FlattenActionWrapper`."
+        "or flatten the action space using `jym.FlattenActionSpaceWrapper`."
     )
 
 
@@ -75,7 +74,7 @@ def _apply_action_mask(logits: Array, action_mask: Array) -> Array:
             f"logits: {jax.tree.structure(logits)} with shapes {jax.tree.map(lambda x: x.shape, logits)} "
             f"action_mask: {jax.tree.structure(action_mask)} with shapes {jax.tree.map(lambda x: x.shape, action_mask)}."
             "Further note that action masking is not supported for actions which are conditionally dependent. "
-            "In this case, flatten the action space (e.g. using a `jym.FlattenActionWrapper`) or use a custom model."
+            "In this case, flatten the action space (e.g. using a `jym.FlattenActionSpaceWrapper`) or use a custom model."
         )
 
 
