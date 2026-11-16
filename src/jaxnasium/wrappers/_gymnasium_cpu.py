@@ -23,6 +23,24 @@ def _autoreset_mode(env: Any) -> Any:
     return getattr(env, "autoreset_mode", env.metadata.get("autoreset_mode"))
 
 
+def _to_gym_action(space: Any, action: Any, batch_shape: tuple) -> Any:
+    """`action` in the dtype and (batched) shape of `space`; recurses into Tuple / Dict spaces."""
+    subspaces = getattr(space, "spaces", None)
+    if isinstance(subspaces, dict):
+        return {
+            k: _to_gym_action(s, action[k], batch_shape) for k, s in subspaces.items()
+        }
+    if isinstance(subspaces, tuple):
+        return tuple(
+            _to_gym_action(s, a, batch_shape) for s, a in zip(subspaces, action)
+        )
+    gym_action = np.asarray(action, dtype=space.dtype).reshape(
+        (*batch_shape, *space.shape)
+    )
+    start = getattr(space, "start", None)  # Discrete / MultiDiscrete may not start at 0
+    return gym_action if start is None else gym_action + start
+
+
 class _CallbackEnv:
     """Python side of the environment: converts between a Gymnasium environment and the
     fixed shapes/dtypes that `io_callback` requires.
@@ -86,21 +104,11 @@ class _CallbackEnv:
         )
 
     def _to_gym_action(self, action: Any) -> Any:
+        # The `action_space` of a vector env is not always batched (implementations differ),
+        # so we build the batched shape from the single environment's space.
         if self.num_envs is None:
-            space = self.env.action_space
-            shape = space.shape
-        else:
-            # The `action_space` of a vector env is not always batched (implementations differ),
-            # so we build the batched shape from the single environment's space.
-            space = self.env.single_action_space
-            shape = (self.num_envs, *space.shape)
-        gym_action = np.asarray(action, dtype=space.dtype).reshape(shape)
-
-        # Discrete / MultiDiscrete may not start at 0
-        start = getattr(space, "start", None)
-        if start is not None:
-            gym_action = gym_action + start
-        return gym_action
+            return _to_gym_action(self.env.action_space, action, ())
+        return _to_gym_action(self.env.single_action_space, action, (self.num_envs,))
 
     def _terminal_obs(self, obs: Any, info: dict) -> Any:
         """AutoresetMode.SAME_STEP mirrors the jaxnasium API and puts the terminal obs in info.
